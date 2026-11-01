@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "packageId": "FS.GG.Algorithms",
+  "packageVersionSource": "NuGet package metadata",
+  "dotnetSdk": "10.0.403",
+  "targetFramework": "net10.0",
+  "fsharpCore": "10.1.401",
+  "fableCompiler": "5.18.0",
+  "fablePackageSdk": "1.4.1",
+  "nodeMajor": 26,
+  "javascriptModuleTarget": "esmodule",
+  "compatibilityProfile": "fs-gg-algorithms-fable-lockstep-v1",
+  "fixtureSchemaVersion": 1,
+  "sourceRepository": "https://github.com/FS-GG/FS.GG.Algorithms",
+  "sourceCommitSource": "NuGet repository metadata"
+}

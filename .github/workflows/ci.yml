@@ -1,0 +1,106 @@
+name: ci
+
+# Build, property tests, the lockstep corpus, the Fable proof and a bench-harness smoke. No secret is read and
+# nothing is published. Recorded bench baselines are never produced here: they need fdev's quiet-host probe
+# (bench/run.sh, ADR-0098 §4.3).
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: build-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Locked restore
+        run: dotnet restore FS.GG.Algorithms.slnx --locked-mode
+
+      - name: Build (warnings are errors)
+        run: dotnet build FS.GG.Algorithms.slnx --no-restore -c Release
+
+      - name: Property tests (FsCheck against independent oracles)
+        run: dotnet run --project tests/FS.GG.Algorithms.Tests -c Release --no-build -- --no-spinner
+
+      - name: Lockstep input corpus is current
+        run: python3 -I scripts/lockstep-fixtures.py check
+
+      - name: Scripts parse
+        run: |
+          set -euo pipefail
+          for f in eng/*.sh bench/*.sh; do bash -n "$f"; done
+          python3 -I -m py_compile scripts/lockstep-fixtures.py bench/assemble.py
+          node --check bench/fable/run.mjs
+
+  fable-proof:
+    name: fable-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Install Node (the toolchain manifest's major)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "26"
+
+      # The same canonical input bytes on .NET and on Fable/Node, byte-identical canonical output equal to
+      # expected.bin, the independent oracle, the 10^5 stack checks under Node's default stack, and a clean
+      # consumer compiled by Fable from the packed package.
+      - name: Fable proof (ADR-0069)
+        run: eng/fable-proof.sh "$RUNNER_TEMP/fable-proof"
+
+  bench-smoke:
+    name: bench-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "26"
+
+      # Proves the two-runtime harness and the results schema; records nothing (timings on a shared runner are
+      # not evidence). Work counts must agree between .NET and Node.
+      - name: Bench harness smoke (BenchmarkDotNet Dry job and Node, one results schema)
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: bench/run.sh --smoke

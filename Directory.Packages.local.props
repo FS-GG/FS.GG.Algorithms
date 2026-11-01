@@ -1,0 +1,15 @@
+<Project>
+  <!-- Repo-specific package versions (the org baseline in Directory.Packages.props pins FSharp.Core; it is
+       not re-declared here). The shipped library references FSharp.Core only; everything below is
+       build-time (Fable.Package.SDK, PrivateAssets=all), test-only or bench-only. -->
+  <ItemGroup Label="Fable source package (build-time only, PrivateAssets=all)">
+    <PackageVersion Include="Fable.Package.SDK" Version="1.4.1" />
+  </ItemGroup>
+  <ItemGroup Label="Tests (never shipped)">
+    <PackageVersion Include="Expecto" Version="11.1.0" />
+    <PackageVersion Include="FsCheck" Version="3.4.0" />
+  </ItemGroup>
+  <ItemGroup Label="Bench (never shipped, ADR-0098 §4)">
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+</Project>

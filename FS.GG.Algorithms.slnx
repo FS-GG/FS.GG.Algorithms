@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FS.GG.Algorithms/FS.GG.Algorithms.fsproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FS.GG.Algorithms.Tests/FS.GG.Algorithms.Tests.fsproj" />
+    <Project Path="tests/FS.GG.Algorithms.Lockstep/FS.GG.Algorithms.Lockstep.fsproj" />
+  </Folder>
+  <Folder Name="/bench/">
+    <Project Path="bench/dotnet/FS.GG.Algorithms.Bench.fsproj" />
+    <Project Path="bench/fable/FS.GG.Algorithms.Bench.Fable.fsproj" />
+  </Folder>
+</Solution>

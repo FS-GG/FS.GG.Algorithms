@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <IsPackable>true</IsPackable>
+    <PackageId>FS.GG.Algorithms</PackageId>
+    <AssemblyName>FS.GG.Algorithms</AssemblyName>
+    <RootNamespace>FS.GG.Algorithms</RootNamespace>
+    <Version>0.1.0</Version>
+    <Title>FS.GG.Algorithms</Title>
+    <Description>Shared algorithms for FS.GG: a frozen-order binary and indexed heap, Q16.16 fixed point, general best-first search (Dijkstra, A*) and the xoshiro128** generator. FSharp.Core only; every module compiles under Fable, and LockstepExact surfaces are bit-identical on .NET and JavaScript (ADR-0098).</Description>
+    <PackageTags>fsharp;algorithms;heap;priority-queue;fixed-point;pathfinding;astar;dijkstra;xoshiro;deterministic;lockstep;fable-javascript;fable-dotnet</PackageTags>
+    <!-- Fable.Package.SDK packs this project file and every Compile item under fable/, so a Fable consumer
+         compiles the same canonical sources (ADR-0098 §3 rule 1). No item below carries a Condition: Fable
+         reads a packed project without evaluating MSBuild conditions (Atlas fable/package-project-conditions-ignored). -->
+    <FablePackageType>library</FablePackageType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Internal/Bits.fs" />
+    <Compile Include="Collections/Heap.fsi" />
+    <Compile Include="Collections/Heap.fs" />
+    <Compile Include="Numerics/Fixed.fsi" />
+    <Compile Include="Numerics/Fixed.fs" />
+    <Compile Include="Random/Xoshiro128.fsi" />
+    <Compile Include="Random/Xoshiro128.fs" />
+    <Compile Include="Graph/BestFirst.fsi" />
+    <Compile Include="Graph/BestFirst.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Fable.Package.SDK"
+                      PrivateAssets="all"
+                      IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+  </ItemGroup>
+
+  <ItemGroup Label="Package content">
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+    <None Include="../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" />
+    <None Include="Fable/compatibility-profile.v1.json" Pack="true" PackagePath="fable-compatibility/compatibility-profile.v1.json" />
+    <None Include="Fable/fixture-schema.v1.json" Pack="true" PackagePath="fable-compatibility/fixture-schema.v1.json" />
+    <None Include="Fable/toolchain-manifest.v1.json" Pack="true" PackagePath="fable-compatibility/toolchain-manifest.v1.json" />
+  </ItemGroup>
+
+</Project>

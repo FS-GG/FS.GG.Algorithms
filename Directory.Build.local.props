@@ -1,0 +1,27 @@
+<Project>
+  <!-- Repo-owned overrides, imported by the org-shared Directory.Build.props (FS-GG/.github dist/dotnet,
+       copied byte-identical from 8ca8f936). Put repository settings here, never in the shared file. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package metadata (ADR-0098 §2)">
+    <Authors>FS-GG</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/FS-GG/FS.GG.Algorithms</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/FS-GG/FS.GG.Algorithms</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <!-- FSharp.Core resolves its version from the org baseline in Directory.Packages.props (CPM); this
+       version-less reference adds the package, so the library's only package dependency is FSharp.Core. -->
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+  </ItemGroup>
+</Project>

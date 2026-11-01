@@ -1,0 +1,2 @@
+# Canonical fixture bytes are compared byte for byte on .NET and Node: never convert them.
+*.bin binary
