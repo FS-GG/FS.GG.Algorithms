@@ -71,6 +71,16 @@
       "name": "Decision.BehaviourTree: compile, initial, tick, tickTraced (memory composites, parallel thresholds, decorators, repeat, retry, running-state resumption, blackboard threading)",
       "grade": "LockstepExact",
       "evidence": "fixture-schema.v1 operation 12; cases 12001-12012; FsCheck equality with a recursive reference interpreter over 8 ticks, fail-fast and succeed-fast, tick idempotence with constant leaves, idle after finishing; 10^5 deep and wide trees under Node's default stack"
+    },
+    {
+      "name": "Search.Grid.DoorGrid: neighbours, distance, findPath (thin walls, doors, planes and stairs, no corner cutting)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 13; cases 13001-13019 (13014-13019: diagonal < orthogonal and diagonal > 2 x orthogonal); FsCheck over arbitrary positive cost pairs: neighbours equal an independently written adjacency, A* and Dijkstra cost equal an oracle Dijkstra (also on open grids), the heuristic is consistent for every move and exact on open grids; a 10^5-tile corridor under Node's default stack"
+    },
+    {
+      "name": "Spatial.KdTree: build, nearest, kNearest, withinRadius, inRectangle, distanceSquared (int coordinates -16383..16383)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 14; cases 14001-14006; FsCheck: every query equals a brute-force scan by (distance^2, X, Y, Index) with heavy ties; 10^5 collinear and duplicate points under Node's default stack"
     }
   ],
   "defaultGrade": "Unclassified",

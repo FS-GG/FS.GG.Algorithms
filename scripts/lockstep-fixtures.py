@@ -482,11 +482,129 @@ def bt_cases():
     return cases
 
 
+def door_case(cid, planes, side, walk, edges, stairs, diagonal, ortho, diag, start, goal, heuristic, budget):
+    w = W().u8(planes).u8(side)
+    w.b += bytes(walk)
+    w.u32(len(edges))
+    for (p, x, y, d, kind, extra) in edges:
+        w.i32(p).i32(x).i32(y).u8(d).u8(kind).i32(extra)
+    w.u32(len(stairs))
+    for (a, b, c) in stairs:
+        for v in a + b:
+            w.i32(v)
+        w.i32(c)
+    w.u8(1 if diagonal else 0).i32(ortho).i32(diag)
+    for v in start + goal:
+        w.i32(v)
+    w.u8(1 if heuristic else 0).i32(budget)
+    return (cid, 13, w.b)
+
+
+def door_cases():
+    cases = [
+        # a door on the direct edge: go around it (and the diagonal is refused next to the door)
+        door_case(13001, 1, 2, [1] * 4, [(0, 0, 0, 0, 2, 7)], [], True, 10, 14, (0, 0, 0), (0, 1, 1), True, I32_MAX),
+        # a wall forces the door; Dijkstra and A* agree
+        door_case(13002, 1, 3, [1] * 9, [(0, 0, 0, 1, 1, 0), (0, 0, 0, 0, 2, 3)], [], False, 1, 1, (0, 0, 0), (0, 0, 2), False, I32_MAX),
+        # planes: the stair is the only way up
+        door_case(13003, 2, 3, [1] * 18, [], [((0, 2, 2), (1, 2, 2), 5)], False, 1, 1, (0, 0, 0), (1, 0, 0), True, I32_MAX),
+        # unreachable, and a budget
+        door_case(13004, 1, 3, [1, 1, 1, 0, 0, 0, 1, 1, 1], [], [], True, 10, 14, (0, 0, 0), (0, 0, 2), True, I32_MAX),
+        door_case(13005, 1, 4, [1] * 16, [], [], True, 10, 14, (0, 0, 0), (0, 3, 3), True, 2),
+    ]
+    for k, seed in enumerate([131, 132, 133, 134, 135, 136, 137, 138]):
+        rng = Lcg(seed)
+        planes, side = 1 + rng.below(3), 4 + rng.below(4)
+        walk = [1 if rng.below(9) else 0 for _ in range(planes * side * side)]
+        edges = []
+        for p in range(planes):
+            for y in range(side):
+                for x in range(side):
+                    for d in (0, 1):
+                        if (d == 0 and x + 1 < side) or (d == 1 and y + 1 < side):
+                            r = rng.below(12)
+                            if r < 1:
+                                edges.append((p, x, y, d, 1, 0))
+                            elif r < 3:
+                                edges.append((p, x, y, d, 2, rng.below(20)))
+        stairs = []
+        for _ in range(rng.below(4)):
+            p, q = rng.below(planes), rng.below(planes)
+            x, y = rng.below(side), rng.below(side)
+            x2 = max(0, min(side - 1, x + rng.below(3) - 1))
+            stairs.append(((p, x, y), (q, x2, y), rng.below(10) + abs(x2 - x) * 10))
+        start = (rng.below(planes), 0, rng.below(side))
+        goal = (rng.below(planes), side - 1, rng.below(side))
+        stairs += [((p, 0, 0), (p + 1, 0, 0), 4) for p in range(planes - 1)]  # a guaranteed way up from each plane
+        for (p, x, y) in (start, goal):
+            walk[(p * side + y) * side + x] = 1
+        cases.append(door_case(13006 + k, planes, side, walk, edges, stairs, k % 2 == 0, 10, 14, start, goal, k < 2, I32_MAX))
+    return cases
+
+
+def kd_cases():
+    def encode(points, queries):
+        w = W().u32(len(points))
+        for (x, y) in points:
+            w.i32(x).i32(y)
+        w.u32(len(queries))
+        for q in queries:
+            w.u8(q[0])
+            for v in (list(q[1:]) + [0, 0, 0, 0])[:4]:
+                w.i32(v)
+        return w.b
+
+    lo, hi = -16383, 16383
+    ties = [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (0, 1), (2, 0)]
+    cases = [
+        (14001, 14, encode(ties, [(0, 0, 0), (1, 3, 0, 0), (2, 1, 0, 0), (3, -1, -1, 1, 1), (1, 0, 5, 5)])),
+        (14002, 14, encode([(lo, lo), (hi, hi), (lo, hi)], [(0, hi, hi - 1), (2, 46340, lo, lo), (1, 2, 0, 0)])),
+        (14003, 14, encode([], [(0, 0, 0), (1, 3, 0, 0), (2, 5, 0, 0), (3, 0, 0, 1, 1)])),
+    ]
+    for k, seed in enumerate([141, 142, 143]):
+        rng = Lcg(seed)
+        span = (6, 300, 16383)[k]
+        pts = [(rng.below(2 * span + 1) - span, rng.below(2 * span + 1) - span) for _ in range(120)]
+        queries = []
+        for _ in range(12):
+            qx, qy = rng.below(2 * span + 1) - span, rng.below(2 * span + 1) - span
+            kind = rng.below(4)
+            if kind == 0:
+                queries.append((0, qx, qy))
+            elif kind == 1:
+                queries.append((1, rng.below(8), qx, qy))
+            elif kind == 2:
+                queries.append((2, rng.below(max(2, span // 2)), qx, qy))
+            else:
+                queries.append((3, qx, qy, min(hi, qx + rng.below(span + 1)), min(hi, qy + rng.below(span + 1))))
+        cases.append((14004 + k, 14, encode(pts, queries)))
+    return cases
+
+
+def door_cost_cases():
+    """Cost pairs where octile is NOT a valid bound (review of FS.GG.Algorithms#6): diagonal < orthogonal, so
+    zigzags beat straight lines, and diagonal > 2 x orthogonal, so diagonals never pay."""
+    open4 = [1] * 16
+    cases = [
+        door_case(13014, 1, 4, open4, [], [], True, 10, 1, (0, 0, 0), (0, 3, 1), True, I32_MAX),   # the counterexample
+        door_case(13015, 1, 4, open4, [], [], True, 10, 1, (0, 0, 0), (0, 3, 0), True, I32_MAX),   # odd parity
+        door_case(13016, 1, 4, open4, [], [], True, 1, 5, (0, 0, 0), (0, 3, 3), True, I32_MAX),    # diagonals useless
+    ]
+    for k, seed in enumerate([151, 152, 153]):
+        rng = Lcg(seed)
+        side = 5 + rng.below(3)
+        walk = [1 if rng.below(7) else 0 for _ in range(side * side)]
+        walk[0] = walk[side * side - 1] = 1
+        ortho, diag = [(10, 1), (7, 3), (2, 9)][k]
+        cases.append(door_case(13017 + k, 1, side, walk, [], [], True, ortho, diag, (0, 0, 0), (0, side - 1, side - 1), True, I32_MAX))
+    return cases
+
+
 def all_cases():
     # Order is append-only: PR 1's cases (operations 1-5 and the operation 10 sweep) stay a byte-identical prefix.
     return (heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases()
             + sweep_cases() + scc_cases() + union_find_cases() + percentile_cases() + arbitration_cases()
-            + topo_cases() + bt_cases())
+            + topo_cases() + bt_cases() + door_cases() + kd_cases() + door_cost_cases())
 
 
 def encode_cases(cases) -> bytes:
@@ -901,6 +1019,104 @@ def py_bt_tick(root, cursor, fin, script, calls, trace):
     return ev(root)
 
 
+def door_decode(payload):
+    r = R(payload)
+    planes, side = r.u8(), r.u8()
+    walk = list(r.b[r.p:r.p + planes * side * side])
+    r.p += planes * side * side
+    edges = {}
+    for _ in range(r.u32()):
+        p, x, y, d, kind, extra = r.i32(), r.i32(), r.i32(), r.u8(), r.u8(), r.i32()
+        a, b = (p, x, y), ((p, x + 1, y) if d == 0 else (p, x, y + 1))
+        v = ("open",) if kind == 0 else ("blocked",) if kind == 1 else ("door", extra)
+        edges[(a, b)] = edges[(b, a)] = v
+    stairs = [((r.i32(), r.i32(), r.i32()), (r.i32(), r.i32(), r.i32()), r.i32()) for _ in range(r.u32())]
+    diagonal = r.u8() == 1
+    ortho, diag = r.i32(), r.i32()
+    start, goal = (r.i32(), r.i32(), r.i32()), (r.i32(), r.i32(), r.i32())
+    heuristic, budget = r.u8(), r.i32()
+
+    def walkable(t):
+        p, x, y = t
+        return 0 <= p < planes and 0 <= x < side and 0 <= y < side and walk[(p * side + y) * side + x] == 1
+
+    def moves(t):
+        p, x, y = t
+        out = []
+        for dx, dy in ((0, -1), (1, 0), (0, 1), (-1, 0)):
+            n = (p, x + dx, y + dy)
+            if walkable(n):
+                e = edges.get((t, n), ("open",))
+                if e[0] == "open":
+                    out.append((n, ortho))
+                elif e[0] == "door":
+                    out.append((n, ortho + e[1]))
+        if diagonal:
+            for dx, dy in ((1, -1), (1, 1), (-1, 1), (-1, -1)):
+                n, sx, sy = (p, x + dx, y + dy), (p, x + dx, y), (p, x, y + dy)
+                op = lambda a, b: edges.get((a, b), ("open",))[0] == "open"
+                if walkable(n) and walkable(sx) and walkable(sy) and op(t, sx) and op(t, sy) and op(sx, n) and op(sy, n):
+                    out.append((n, diag))
+        out += [(b, c) for (a, b, c) in stairs if a == t]
+        return out
+
+    return planes, side, walkable, moves, start, goal, budget
+
+
+def door_check(payload, out):
+    planes, side, walkable, moves, start, goal, budget = door_decode(payload)
+    o = R(out)
+    errors = []
+    for p in range(planes):
+        for y in range(side):
+            for x in range(side):
+                t = (p, x, y)
+                if walkable(t):
+                    got = [((o.i32(), o.i32(), o.i32()), o.i32()) for _ in range(o.u32())]
+                    if got != moves(t):
+                        errors.append(f"neighbours of {t} differ")
+    dist = {start: 0}
+    pq = [(0, start)]
+    while pq:
+        d, c = heapq.heappop(pq)
+        if d > dist[c]:
+            continue
+        for n, w in moves(c):
+            if d + w < dist.get(n, 1 << 62):
+                dist[n] = d + w
+                heapq.heappush(pq, (d + w, n))
+    outcome = o.u8()
+    if outcome == 0:
+        cost, plen = o.i32(), o.u32()
+        path = [(o.i32(), o.i32(), o.i32()) for _ in range(plen)]
+        expanded = o.u32()
+        if cost != dist.get(goal):
+            errors.append(f"cost {cost} is not optimal {dist.get(goal)}")
+        if path[0] != start or path[-1] != goal:
+            errors.append("path endpoints")
+        total = 0
+        for a, b in zip(path, path[1:]):
+            options = [w for n, w in moves(a) if n == b]
+            if not options:
+                errors.append(f"illegal move {a}->{b}")
+                break
+            total += min(options)
+        if total != cost:
+            errors.append("path cost differs")
+        if not 1 <= expanded <= budget:
+            errors.append("expanded outside [1, budget]")
+    elif outcome == 1:
+        o.u32()
+        if goal in dist:
+            errors.append("reported unreachable")
+    else:
+        if o.u32() != budget:
+            errors.append("budget exhaustion must expand exactly the budget")
+    if o.p != len(out):
+        errors.append("trailing bytes")
+    return errors
+
+
 def oracle_payload(op: int, r: R) -> W:
     w = W()
     if op == 1:
@@ -1147,6 +1363,30 @@ def oracle_payload(op: int, r: R) -> W:
                 w.u32(len(arr))
                 for x in arr:
                     w.i32(x)
+    elif op == 14:
+        pts = [(r.i32(), r.i32()) for _ in range(r.u32())]
+        n = r.u32()
+        w.u32(n)
+        for _ in range(n):
+            kind, a, b, c, d = r.u8(), r.i32(), r.i32(), r.i32(), r.i32()
+            if kind == 0:
+                qx, qy = a, b
+            elif kind in (1, 2):
+                qx, qy = b, c
+            if kind in (0, 1, 2):
+                keyed = sorted(((x - qx) ** 2 + (y - qy) ** 2, x, y, i) for i, (x, y) in enumerate(pts))
+                if kind == 0:
+                    res = keyed[:1]
+                elif kind == 1:
+                    res = keyed[:a]
+                else:
+                    res = [t for t in keyed if t[0] <= a * a]
+                res = [(x, y, i) for (_, x, y, i) in res]
+            else:
+                res = sorted((x, y, i) for i, (x, y) in enumerate(pts) if a <= x <= c and b <= y <= d)
+            w.u32(len(res))
+            for (x, y, i) in res:
+                w.i32(x).i32(y).i32(i)
     else:
         raise ValueError(op)
     return w
@@ -1238,6 +1478,11 @@ def oracle(expected: bytes) -> int:
         problems = []
         if (rec_cid, rec_op) != (cid, op):
             problems.append(f"record order: got case {rec_cid} op {rec_op}")
+        elif op == 13:
+            if outcome != 0:
+                problems.append(f"outcome {outcome}")
+            else:
+                problems += door_check(bytes(payload), body)
         elif op == 4:
             if outcome != 0:
                 problems.append(f"outcome {outcome}")

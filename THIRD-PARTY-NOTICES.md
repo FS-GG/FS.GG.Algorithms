@@ -31,6 +31,10 @@ here.
 - **Behaviour trees.** M. Colledanchise and P. Ögren, *Behavior Trees in Robotics and AI: An Introduction*, CRC
   Press, 2018, doi:10.1201/9780429489105. D. Isla, "Handling Complexity in the Halo 2 AI", Game Developers
   Conference, 2005. Summarised, not copied.
+- **k-d trees.** J. L. Bentley, "Multidimensional binary search trees used for associative searching",
+  *Communications of the ACM* 18(9), 1975, doi:10.1145/361002.361007. J. H. Friedman, J. L. Bentley and R. A.
+  Finkel, "An Algorithm for Finding Best Matches in Logarithmic Expected Time", *ACM TOMS* 3(3), 1977,
+  doi:10.1145/355744.355745.
 - **Nearest-rank percentile.** NIST/SEMATECH *e-Handbook of Statistical Methods*, §7.2.6.2 (percentiles).
 - **Priority arbitration.** R. A. Brooks, "A Robust Layered Control System for a Mobile Robot", *IEEE
   Journal on Robotics and Automation* 2(1), 1986, doi:10.1109/JRA.1986.1087032.
@@ -45,6 +49,7 @@ inputs. Nothing was copied, and no game data or constants were carried.
 | `graph/iterative-tarjan-scc` | FS-GG/.github `8ca8f936`, `src/FS.GG.Coord.Core/Blockers.fs`, `214a0c87c8ca19ab3577ae1dc5a1e2912a6529f4c879cef3a9d8f30ec1e0c5ba` (recursive there) |
 | `graph/union-find` | FS-GG/.github `8ca8f936`, `src/FS.GG.Coord.Core/Lanes.fs`, `af4aa5b979d15554ed72c0b438839bd48464dfff5a06c791079ff0a3c10651e6` (recursive `find` there) |
 | `numerics/nearest-rank-percentile` | FS-GG/FS.GG.Governance `3b8543e8`, `src/FS.GG.Governance.Adapters.SddHandoff/Performance.fs`, `88acdb58438397ff2bbb1626a610650288a4e2058b54e6fc352d845ff70b6c82` (a double-precision rank there; its 0.95 and 0.99 uses are unaffected) |
+| `search.grid/doors-and-planes` | Not harvested from code: written generically from the harvest list's description ("A* with doors and plane handling", FS-GG/.github#5224). No RuneScape source, collision flags or game data were read or used |
 | `decision/priority-arbitration` | FS-GG/FS.GG.RuneScape (private) `1a0c532b`, `src/FS.GG.RuneScape.Bots/Arbitration.fs`, `4c7e8fd9a850a33c2688dea1ee48c7ab96873b103e30b57a57c23de63899d40a`, and `docs/decisions/0002-controller-arbitration.md`, `aede538fce5c4079e47b4a5a5c44532e3706627dcc6668e6d75358651a6b6f49`. This is provenance only. Readers without access treat it as a retrieval gap |
 
 ## Test data

@@ -21,6 +21,8 @@
     <Compile Include="TopoSortTests.fs" />
     <Compile Include="ArbitrationTests.fs" />
     <Compile Include="BehaviourTreeTests.fs" />
+    <Compile Include="KdTreeTests.fs" />
+    <Compile Include="DoorGridTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

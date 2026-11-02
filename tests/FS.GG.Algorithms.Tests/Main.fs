@@ -15,5 +15,7 @@ let main argv =
           UnionFindTests.tests
           TopoSortTests.tests
           ArbitrationTests.tests
-          BehaviourTreeTests.tests ]
+          BehaviourTreeTests.tests
+          KdTreeTests.tests
+          DoorGridTests.tests ]
     |> runTestsWithCLIArgs [] argv

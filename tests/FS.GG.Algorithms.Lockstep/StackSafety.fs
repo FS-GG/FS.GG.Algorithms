@@ -5,6 +5,8 @@ module FS.GG.Algorithms.Lockstep.StackSafety
 open FS.GG.Algorithms.Collections
 open FS.GG.Algorithms.Graph
 open FS.GG.Algorithms.Decision
+open FS.GG.Algorithms.Search.Grid
+open FS.GG.Algorithms.Spatial
 
 let size = 100000
 
@@ -93,6 +95,24 @@ let private behaviourTreeDeep () =
     let s2, _, () = BehaviourTree.tick wide (fun _ () -> BtStatus.Failure, ()) (BehaviourTree.initial wide) ()
     s = BtStatus.Success && program.NodeCount = size + 1 && s2 = BtStatus.Failure
 
+let private doorCorridor () =
+    let g =
+        { Walkable = (fun t -> t.Plane = 0 && t.Y = 0 && t.X >= 0 && t.X < size)
+          Edge = (fun _ _ _ -> Passage.Open)
+          Transitions = (fun _ -> [])
+          Diagonal = true
+          OrthogonalCost = 1
+          DiagonalCost = 1 }
+    match (DoorGrid.findPath g true System.Int32.MaxValue { Plane = 0; X = size - 1; Y = 0 } { Plane = 0; X = 0; Y = 0 }).Outcome with
+    | Found(path, cost) -> List.length path = size && cost = size - 1
+    | _ -> false
+
+let private kdDegenerate () =
+    let line = KdTree.build [ for i in 0 .. size - 1 -> i % 32767 - 16383, 5, i ]
+    let dup = KdTree.build [ for i in 0 .. size - 1 -> 3, 3, i ]
+    (KdTree.nearest 0 5 line |> Option.map (fun p -> p.X)) = Some 0
+    && (KdTree.kNearest 3 0 0 dup |> List.map (fun p -> p.Index)) = [ 0; 1; 2 ]
+
 #if FABLE_COMPILER
 /// Canary (Node only): a non-tail recursion over the same 10^5 depth must overflow Node's default stack,
 /// which shows the checks above run where unbounded recursion would fail. Not run on .NET, where a stack
@@ -119,7 +139,9 @@ let run () =
           "UnionFind 10^5 chained unions", unionFindChain
           "Arbitration 10^4 queued entries drained", arbitrationQueue
           "TopoSort.sort and criticalPath 10^5-node chain", topoChain
-          "BehaviourTree 10^5 levels deep and 10^5 wide", behaviourTreeDeep ]
+          "BehaviourTree 10^5 levels deep and 10^5 wide", behaviourTreeDeep
+          "DoorGrid 10^5-tile corridor", doorCorridor
+          "KdTree 10^5 collinear and duplicate points", kdDegenerate ]
     let results = checks |> List.map (fun (name, f) -> name, f ())
     let lines =
         results |> List.map (fun (name, ok) -> "stack-safety: " + name + ": " + (if ok then "ok" else "FAILED"))

@@ -7,6 +7,8 @@ open FS.GG.Algorithms.Numerics
 open FS.GG.Algorithms.Random
 open FS.GG.Algorithms.Graph
 open FS.GG.Algorithms.Decision
+open FS.GG.Algorithms.Search.Grid
+open FS.GG.Algorithms.Spatial
 open FS.GG.Algorithms.Lockstep.Canonical
 
 /// Outcome tag 0: completed normally. Outcome tag 1: the operation refused its input (an exception).
@@ -527,6 +529,104 @@ let behaviourTree (r: Reader) (w: Writer) =
         writeList state.Cursors
         writeList state.Finished
 
+/// Operation 13: DoorGrid. Input: u8 planes, u8 side, planes*side*side u8 walkable; u32 edges, each i32 plane,
+/// x, y, u8 direction (0 east, 1 south), u8 kind (0 open, 1 blocked, 2 door), i32 extra; u32 stairs, each
+/// i32 p, x, y, q, x2, y2, cost; u8 diagonal; i32 orthogonalCost, diagonalCost; i32 start p, x, y; i32 goal p,
+/// x, y; u8 heuristic; i32 maxExpanded. Output: per walkable tile in (plane, y, x) order the neighbour list
+/// (i32 p, x, y, cost); then u8 outcome (0 found: i32 cost, list<i32 p, x, y> | 1 unreachable | 2 budget),
+/// u32 expanded.
+let doorGrid (r: Reader) (w: Writer) =
+    let planes = r.U8()
+    let side = r.U8()
+    let walk = r.Bytes(planes * side * side)
+    let edges = System.Collections.Generic.Dictionary<struct (int * int * int * int * int * int), Passage>()
+    // Bind the count first: Fable 5.18.0 re-evaluates a side-effecting `for` upper bound on every iteration,
+    // where F# on .NET evaluates it once (found by this proof: `for _ in 1 .. r.U32()` read past the end).
+    let edgeCount = r.U32()
+    for _ in 1..edgeCount do
+        let p = r.I32()
+        let x = r.I32()
+        let y = r.I32()
+        let dir = r.U8()
+        let kind = r.U8()
+        let extra = r.I32()
+        let passage = if kind = 0 then Passage.Open elif kind = 1 then Passage.Blocked else Passage.Door extra
+        let x2, y2 = if dir = 0 then x + 1, y else x, y + 1
+        edges.[struct (p, x, y, p, x2, y2)] <- passage
+        edges.[struct (p, x2, y2, p, x, y)] <- passage
+    let stairs = List.init (r.U32()) (fun _ -> { Plane = r.I32(); X = r.I32(); Y = r.I32() }, { Plane = r.I32(); X = r.I32(); Y = r.I32() }, r.I32())
+    let diagonal = r.U8() = 1
+    let ortho = r.I32()
+    let diag = r.I32()
+    let start = { Plane = r.I32(); X = r.I32(); Y = r.I32() }
+    let goal = { Plane = r.I32(); X = r.I32(); Y = r.I32() }
+    let heuristic = r.U8() = 1
+    let budget = r.I32()
+    let walkable (t: Tile) =
+        t.Plane >= 0 && t.Plane < planes && t.X >= 0 && t.Y >= 0 && t.X < side && t.Y < side
+        && walk.[(t.Plane * side + t.Y) * side + t.X] = 1
+    let grid =
+        { Walkable = walkable
+          Edge =
+            (fun t dx dy ->
+                match edges.TryGetValue(struct (t.Plane, t.X, t.Y, t.Plane, t.X + dx, t.Y + dy)) with
+                | true, p -> p
+                | _ -> Passage.Open)
+          Transitions = (fun t -> stairs |> List.filter (fun (a, _, _) -> a = t) |> List.map (fun (_, b, c) -> b, c))
+          Diagonal = diagonal
+          OrthogonalCost = ortho
+          DiagonalCost = diag }
+    let writeTile (t: Tile) =
+        w.I32 t.Plane
+        w.I32 t.X
+        w.I32 t.Y
+    for p in 0 .. planes - 1 do
+        for y in 0 .. side - 1 do
+            for x in 0 .. side - 1 do
+                let t = { Plane = p; X = x; Y = y }
+                if walkable t then
+                    let ns = DoorGrid.neighbours grid t
+                    w.U32(List.length ns)
+                    for (n, c) in ns do
+                        writeTile n
+                        w.I32 c
+    let result = DoorGrid.findPath grid heuristic budget goal start
+    match result.Outcome with
+    | Found(path, cost) ->
+        w.U8 0
+        w.I32 cost
+        w.U32(List.length path)
+        List.iter writeTile path
+    | Unreachable -> w.U8 1
+    | BudgetExhausted -> w.U8 2
+    w.U32 result.Expanded
+
+/// Operation 14: KdTree. Input: list of (i32 x, i32 y) points (the value is the index), then u32 queries,
+/// each u8 kind (0 nearest | 1 kNearest | 2 withinRadius | 3 inRectangle), i32 a, b, c, d (kind 0: x, y;
+/// 1: k, x, y; 2: radius, x, y; 3: minX, minY, maxX, maxY). Output: per query list<i32 x, y, index>.
+let kdTree (r: Reader) (w: Writer) =
+    let points = List.init (r.U32()) (fun i -> let x = r.I32() in let y = r.I32() in x, y, i)
+    let tree = KdTree.build points
+    let n = r.U32()
+    w.U32 n
+    for _ in 1..n do
+        let kind = r.U8()
+        let a = r.I32()
+        let b = r.I32()
+        let c = r.I32()
+        let d = r.I32()
+        let result =
+            match kind with
+            | 0 -> KdTree.nearest a b tree |> Option.toList
+            | 1 -> KdTree.kNearest a b c tree
+            | 2 -> KdTree.withinRadius a b c tree
+            | _ -> KdTree.inRectangle a b c d tree
+        w.U32(List.length result)
+        for p in result do
+            w.I32 p.X
+            w.I32 p.Y
+            w.I32 p.Index
+
 /// Runs one case and returns its canonical record:
 /// u32 recordByteCount (bytes after this field), u32 caseId, u16 operationId, u16 outcomeTag, payload.
 let runCase (caseId: int) (operation: int) (payload: int[]) =
@@ -543,6 +643,8 @@ let runCase (caseId: int) (operation: int) (payload: int[]) =
             | 10 -> fixedSweep r body
             | 11 -> topoSort r body
             | 12 -> behaviourTree r body
+            | 13 -> doorGrid r body
+            | 14 -> kdTree r body
             | 6 -> scc r body
             | 7 -> unionFind r body
             | 8 -> percentile r body
