@@ -39,8 +39,48 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build FS.GG.Algorithms.slnx --no-restore -c Release
 
+      # The whole suite takes about 2 seconds. A step bound well above that makes a hang fail in minutes, not at the
+      # 20-minute job limit (FS-GG/FS.GG.Algorithms#34).
       - name: Property tests (FsCheck against independent oracles)
+        timeout-minutes: 5
         run: dotnet run --project tests/FS.GG.Algorithms.Tests -c Release --no-build -- --no-spinner
+
+      # Negative control (FS-GG/FS.GG.Algorithms#34). The runner's failure path must not hang. Before the fix, a failing
+      # property deadlocked the parallel Expecto run (Expecto's console writer lock against the .NET console lock) and
+      # CI saw only the job timeout. Eight properties that can never hold join the suite, which stays parallel, and the
+      # run must exit non-zero inside the bound with exactly eight failures. Exit 124 or 137 is the hang this guards.
+      - name: Negative control (a failing property fails the run within 2 minutes)
+        shell: bash
+        run: |
+          set -u
+          control=8
+          bound=120
+          log="$RUNNER_TEMP/negative-control.log"
+          start=$SECONDS
+          # The runner's shell has -e: the non-zero exit being tested must not end the step.
+          code=0
+          FSGG_ALGO_NEGATIVE_CONTROL=$control timeout --kill-after=10 "$bound" \
+            dotnet tests/FS.GG.Algorithms.Tests/bin/Release/net10.0/FS.GG.Algorithms.Tests.dll --no-spinner --colours 0 \
+            > "$log" 2>&1 || code=$?
+          elapsed=$((SECONDS - start))
+          tail -n 4 "$log"
+          echo "negative control: exit $code after ${elapsed}s (bound ${bound}s)"
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            echo "::error::the failing properties hung the run: it was killed at the ${bound}s bound"
+            exit 1
+          fi
+          if [ "$code" -eq 0 ]; then
+            echo "::error::eight failing properties produced a passing run: the control is not exercised"
+            exit 1
+          fi
+          summary=$(grep -E 'EXPECTO! [0-9]+ tests run' "$log" | tail -n 1)
+          failed=$(sed -E 's/.* ([0-9]+) failed, ([0-9]+) errored.*/\1 \2/' <<<"$summary")
+          read -r nfailed nerrored <<<"$failed"
+          if [ -z "${nfailed:-}" ] || [ -z "${nerrored:-}" ] || [ $((nfailed + nerrored)) -ne "$control" ]; then
+            echo "::error::expected exactly $control failing properties, the summary says: ${summary:-none}"
+            exit 1
+          fi
+          echo "negative control passed: $control failing properties failed the run in ${elapsed}s"
 
       - name: Lockstep input corpus is current
         run: python3 -I scripts/lockstep-fixtures.py check
