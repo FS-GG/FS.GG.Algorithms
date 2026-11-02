@@ -8,6 +8,7 @@ open FS.GG.Algorithms.Collections
 open FS.GG.Algorithms.Numerics
 open FS.GG.Algorithms.Random
 open FS.GG.Algorithms.Graph
+open FS.GG.Algorithms.Decision
 
 /// The fixed seed of every bench input.
 let seed = 20261101
@@ -118,6 +119,37 @@ let prepareTopoCpm (n: int) : unit -> int =
         | Ok s -> s.Makespan
         | Error _ -> -1
 
+/// decision/behaviour-tree: n ticks of a fixed 31-node tree (selectors over sequences, a parallel, repeat and
+/// retry) whose leaves read a seeded table by their call count. Work: the leaves ticked.
+let prepareBehaviourTree (n: int) : unit -> int =
+    let table = ints 4096 3
+    let leafTree k = BehaviourTree.Leaf k
+    let branch k =
+        BehaviourTree.Sequence
+            [ leafTree k; BehaviourTree.Retry(2, leafTree (k + 1)); BehaviourTree.Invert(leafTree (k + 2)) ]
+    let tree =
+        BehaviourTree.Selector
+            [ branch 0
+              BehaviourTree.Parallel(2, 2, [ branch 3; branch 6; BehaviourTree.Repeat(2, leafTree 9) ])
+              branch 10
+              BehaviourTree.Sequence [ branch 13; branch 16 ] ]
+    let program = BehaviourTree.compile tree
+    let leaf (_: int) (count: int) =
+        let s =
+            match table.[count &&& 4095] with
+            | 0 -> BtStatus.Success
+            | 1 -> BtStatus.Failure
+            | _ -> BtStatus.Running
+        s, count + 1
+    fun () ->
+        let mutable state = BehaviourTree.initial program
+        let mutable count = 0
+        for _ in 1..n do
+            let _, next, c = BehaviourTree.tick program leaf state count
+            state <- next
+            count <- c
+        count
+
 /// The nearest-rank sample of ascending timings, for the Node harness's summaries (harvest 20: the library's
 /// own percentile, exact integer rank).
 let nearestRank (percent: int) (sortedSamples: float[]) = Percentile.ofSorted percent 100 sortedSamples
@@ -131,4 +163,5 @@ let kernels: (string * int list * (int -> unit -> int)) list =
       "graph/best-first-search/dijkstra-grid", [ 32; 128; 512 ], prepareDijkstra
       "graph/iterative-tarjan-scc/random-digraph", [ 1000; 10000; 100000 ], prepareScc
       "graph/union-find/random-unions", [ 1000; 10000; 100000 ], prepareUnionFind
-      "graph/topological-sort-cpm/random-dag", [ 1000; 10000; 100000 ], prepareTopoCpm ]
+      "graph/topological-sort-cpm/random-dag", [ 1000; 10000; 100000 ], prepareTopoCpm
+      "decision/behaviour-tree/ticks", [ 1000; 10000; 100000 ], prepareBehaviourTree ]

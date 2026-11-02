@@ -36,6 +36,8 @@
     <Compile Include="Graph/TopoSort.fs" />
     <Compile Include="Decision/Arbitration.fsi" />
     <Compile Include="Decision/Arbitration.fs" />
+    <Compile Include="Decision/BehaviourTree.fsi" />
+    <Compile Include="Decision/BehaviourTree.fs" />
   </ItemGroup>
 
   <ItemGroup>

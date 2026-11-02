@@ -75,14 +75,20 @@
       "operation": "TopoSort.sort and TopoSort.criticalPath with compare on int nodes",
       "input": "list<i32> nodes, u32 vertexCount and per vertex list<i32> successors, u32 count and i32 durations by vertex",
       "payload": "u8 sorted: 1 list<i32> order, i32 makespan, list<i32> critical path, then per activity i32 node, duration, earliestStart, earliestFinish, latestStart, latestFinish, slack | 0 list<list<i32>> cycles"
+    },
+    {
+      "id": 12,
+      "operation": "BehaviourTree.compile and tickTraced over several ticks",
+      "input": "the tree in preorder (u8 kind: 0 leaf i32 id | 1 sequence, 2 selector: u32 n, children | 3 parallel: i32 successAt, i32 failureAt, u32 n, children | 4 invert, 5 forceSuccess, 6 forceFailure: child | 7 repeat, 8 retry: i32 count, child), u32 leafCount and per leaf list<u8> status script (0 success, 1 failure, 2 running) cycled by that leaf's call count, u32 ticks",
+      "payload": "u32 ticks, then per tick u8 status, list<i32> leaf trace (preorder), leafCount i32 call counts (the blackboard), list<i32> cursors, list<i32> finished"
     }
   ],
   "inputs": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/cases.bin",
-  "inputsSha256": "b7125945f81861ec0f871e3545e91b3b9e48a15d3ddae8cf8235ea73c0a000d1",
+  "inputsSha256": "11647d0712ba24f74bce7a8345f652d0540a7fd4b300e9835d16f5db38dbf954",
   "inputsGenerator": "scripts/lockstep-fixtures.py generate (fixed constants and a 32-bit LCG; no clock, network or host randomness)",
   "oracle": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/expected.bin",
-  "oracleSha256": "868153d2d42e3bdaa433854ba0ef1240678354b0539b3161dcb16f75b554c39a",
-  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; Kahn on Python's heapq with CPM by definition for 11; optimal cost, path validity and settle order for 4",
+  "oracleSha256": "b0c0e2fb52029ef3a36bb4e35472da3a2c47ae29634816900c003ab89ed94d60",
+  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; Kahn on Python's heapq with CPM by definition for 11; a recursive Python behaviour-tree interpreter for 12; optimal cost, path validity and settle order for 4",
   "outcomeTags": {
     "0": "operation completed normally",
     "1": "operation refused its input (an exception); the payload is empty"
