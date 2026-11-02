@@ -115,3 +115,76 @@ let exhaustive (g: Digraph) (source: int) (target: int) =
                 if not (visited.Contains v) then walk v (visited.Add v) (cost + c)
     walk source (Set.singleton source) 0
     best
+
+// ---------------------------------------------------------------- SCC and components (PR 2)
+
+/// Recursive Tarjan over vertices 0..n-1, as the harvested source is written (test oracle only; recursion is
+/// fine at test sizes). Same conventions as the library: roots in vertex order, successors in list order,
+/// components in completion order, each in discovery order.
+let recursiveTarjan (n: int) (succ: int -> int list) =
+    let index = Array.create n -1
+    let low = Array.create n 0
+    let onStack = Array.create n false
+    let mutable stack = []
+    let mutable counter = 0
+    let found = ResizeArray<int list>()
+    let rec strongconnect v =
+        index.[v] <- counter
+        low.[v] <- counter
+        counter <- counter + 1
+        stack <- v :: stack
+        onStack.[v] <- true
+        for w in succ v do
+            if index.[w] < 0 then
+                strongconnect w
+                low.[v] <- min low.[v] low.[w]
+            elif onStack.[w] then
+                low.[v] <- min low.[v] index.[w]
+        if low.[v] = index.[v] then
+            let mutable comp = []
+            let mutable popping = true
+            while popping do
+                let w = List.head stack
+                stack <- List.tail stack
+                onStack.[w] <- false
+                comp <- w :: comp
+                if w = v then popping <- false
+            found.Add comp
+    for v in 0 .. n - 1 do
+        if index.[v] < 0 then strongconnect v
+    List.ofSeq found
+
+/// reach.[u].[v]: v is reachable from u (reflexive), by BFS from every vertex.
+let reachability (n: int) (succ: int -> int list) =
+    Array.init n (fun u ->
+        let seen = Array.create n false
+        let queue = System.Collections.Generic.Queue<int>()
+        seen.[u] <- true
+        queue.Enqueue u
+        while queue.Count > 0 do
+            for w in succ (queue.Dequeue()) do
+                if not seen.[w] then
+                    seen.[w] <- true
+                    queue.Enqueue w
+        seen)
+
+/// Connected components of an undirected graph by BFS: groups ordered by smallest member, members ascending.
+let bfsComponents (n: int) (edges: (int * int) list) =
+    let adj = Array.create n []
+    for (a, b) in edges do
+        adj.[a] <- b :: adj.[a]
+        adj.[b] <- a :: adj.[b]
+    let label = Array.create n -1
+    for s in 0 .. n - 1 do
+        if label.[s] < 0 then
+            let queue = System.Collections.Generic.Queue<int>()
+            label.[s] <- s
+            queue.Enqueue s
+            while queue.Count > 0 do
+                for w in adj.[queue.Dequeue()] do
+                    if label.[w] < 0 then
+                        label.[w] <- s
+                        queue.Enqueue w
+    [ for s in 0 .. n - 1 do
+          let members = [ for v in 0 .. n - 1 do if label.[v] = s then yield v ]
+          if not members.IsEmpty then yield members ]

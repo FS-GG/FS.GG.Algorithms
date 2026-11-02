@@ -8,7 +8,7 @@
     <RootNamespace>FS.GG.Algorithms</RootNamespace>
     <Version>0.1.0</Version>
     <Title>FS.GG.Algorithms</Title>
-    <Description>Shared algorithms for FS.GG: a frozen-order binary and indexed heap, Q16.16 fixed point, general best-first search (Dijkstra, A*) and the xoshiro128** generator. FSharp.Core only; every module compiles under Fable, and LockstepExact surfaces are bit-identical on .NET and JavaScript (ADR-0098).</Description>
+    <Description>Shared algorithms for FS.GG: a frozen-order binary and indexed heap, Q16.16 fixed point, nearest-rank percentiles, general best-first search (Dijkstra, A*), iterative Tarjan SCC, union-find, priority-band arbitration and the xoshiro128** generator. FSharp.Core only; every module compiles under Fable, and LockstepExact surfaces are bit-identical on .NET and JavaScript (ADR-0098).</Description>
     <PackageTags>fsharp;algorithms;heap;priority-queue;fixed-point;pathfinding;astar;dijkstra;xoshiro;deterministic;lockstep;fable-javascript;fable-dotnet</PackageTags>
     <!-- Fable.Package.SDK packs this project file and every Compile item under fable/, so a Fable consumer
          compiles the same canonical sources (ADR-0098 §3 rule 1). No item below carries a Condition: Fable
@@ -22,10 +22,18 @@
     <Compile Include="Collections/Heap.fs" />
     <Compile Include="Numerics/Fixed.fsi" />
     <Compile Include="Numerics/Fixed.fs" />
+    <Compile Include="Numerics/Percentile.fsi" />
+    <Compile Include="Numerics/Percentile.fs" />
     <Compile Include="Random/Xoshiro128.fsi" />
     <Compile Include="Random/Xoshiro128.fs" />
     <Compile Include="Graph/BestFirst.fsi" />
     <Compile Include="Graph/BestFirst.fs" />
+    <Compile Include="Graph/Scc.fsi" />
+    <Compile Include="Graph/Scc.fs" />
+    <Compile Include="Graph/UnionFind.fsi" />
+    <Compile Include="Graph/UnionFind.fs" />
+    <Compile Include="Decision/Arbitration.fsi" />
+    <Compile Include="Decision/Arbitration.fs" />
   </ItemGroup>
 
   <ItemGroup>

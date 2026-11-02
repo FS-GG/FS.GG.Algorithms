@@ -6,6 +6,7 @@ open FS.GG.Algorithms.Collections
 open FS.GG.Algorithms.Numerics
 open FS.GG.Algorithms.Random
 open FS.GG.Algorithms.Graph
+open FS.GG.Algorithms.Decision
 open FS.GG.Algorithms.Lockstep.Canonical
 
 /// Outcome tag 0: completed normally. Outcome tag 1: the operation refused its input (an exception).
@@ -285,6 +286,149 @@ let fixedSweep (r: Reader) (w: Writer) =
         mix 8 (Fixed.compare fa fb)
     w.U32 pairs
     Array.iter w.I32 h
+/// Operation 6: Tarjan SCC over vertices given as an explicit list (duplicates allowed) with successor lists.
+/// Output: the components (in order, members in order), then the cycles, then componentOf in node-list order.
+let scc (r: Reader) (w: Writer) =
+    let nodeCount = r.U32()
+    let nodes = List.init nodeCount (fun _ -> r.I32())
+    let vertexCount = r.U32()
+    let table = Array.init vertexCount (fun _ -> List.init (r.U32()) (fun _ -> r.I32()))
+    let succ (v: int) = if v >= 0 && v < table.Length then table.[v] else []
+    let writeLists (ls: int list list) =
+        w.U32(List.length ls)
+        for l in ls do
+            w.U32(List.length l)
+            List.iter w.I32 l
+    writeLists (Scc.tarjan nodes succ)
+    writeLists (Scc.cycles nodes succ)
+    let ids = Scc.componentOf nodes succ
+    w.U32(List.length ids)
+    List.iter w.I32 ids
+
+/// Operation 7: union-find. Output: per union the merged flag, then representatives 0..n-1, count, and the sets.
+let unionFind (r: Reader) (w: Writer) =
+    let n = r.U32()
+    let uf = UnionFind.create n
+    let m = r.U32()
+    w.U32 m
+    for _ in 1..m do
+        let a = r.I32()
+        let b = r.I32()
+        w.Bool(UnionFind.union a b uf)
+    for i in 0 .. n - 1 do
+        w.I32(UnionFind.representative i uf)
+    w.U32(UnionFind.count uf)
+    let sets = UnionFind.sets uf
+    w.U32(List.length sets)
+    for set in sets do
+        w.U32(List.length set)
+        List.iter w.I32 set
+
+/// Operation 8: nearest-rank percentiles. Input: u32 count of (i32 numerator, i32 denominator, i32 count)
+/// triples, then a sample list and u32 count of percents. Output: the ranks, then the percent values.
+let percentile (r: Reader) (w: Writer) =
+    let k = r.U32()
+    w.U32 k
+    for _ in 1..k do
+        let num = r.I32()
+        let den = r.I32()
+        let n = r.I32()
+        w.I32(Percentile.rank num den n)
+    let samples = List.init (r.U32()) (fun _ -> r.I32())
+    let ps = r.U32()
+    w.U32 ps
+    for _ in 1..ps do
+        w.I32(Percentile.percent (r.I32()) samples)
+
+/// The fixture policy for operation 9: owners 0..5, two per band; band 3 newest-first, bands 2 and 1
+/// earliest-first; at most 16 waiting in band 3 and 6 in the others.
+let arbitrationPolicy: ArbitrationPolicy<int> =
+    { BandOf = (fun owner -> 3 - owner / 2)
+      OrderOf = (fun band -> if band = 3 then BandOrder.NewestFirst else BandOrder.EarliestFirst)
+      MaxWaiting = (fun band -> if band = 3 then Some 16 else Some 6) }
+
+/// Operation 9: priority arbitration. Input: u32 count of inputs; u8 tag 0 submit (i32 owner, i32 key, u8 replace)
+/// | 1 cancel (i32 by, i32 key) | 2 cancelAll (i32 by) | 3 release (i32 owner) | 4 finished (i32 key).
+/// Output: per input u32 decision count and decisions (u8 tag, fields), then the final live entries.
+let arbitration (r: Reader) (w: Writer) =
+    let reasonCode (reason: EndReason<int>) =
+        match reason with
+        | EndReason.Finished -> 0, -1
+        | EndReason.Cancelled by -> 1, by
+        | EndReason.Replaced -> 2, -1
+        | EndReason.Released -> 3, -1
+        | EndReason.CancelledAll by -> 4, by
+    let mutable state = Arbitration.empty<int, int, unit>
+    let n = r.U32()
+    w.U32 n
+    for _ in 1..n do
+        let input =
+            match r.U8() with
+            | 0 ->
+                let owner = r.I32()
+                let key = r.I32()
+                let mode = if r.U8() = 1 then SubmitMode.Replace else SubmitMode.Queue
+                ArbitrationInput.Submit(owner, key, (), mode)
+            | 1 ->
+                let by = r.I32()
+                ArbitrationInput.Cancel(by, r.I32())
+            | 2 -> ArbitrationInput.CancelAll(r.I32())
+            | 3 -> ArbitrationInput.Release(r.I32())
+            | _ -> ArbitrationInput.Finished(r.I32())
+        let next, decisions = Arbitration.step arbitrationPolicy state input
+        state <- next
+        w.U32(List.length decisions)
+        for d in decisions do
+            match d with
+            | ArbitrationDecision.Accepted k ->
+                w.U8 0
+                w.I32 k
+            | ArbitrationDecision.Refused refusal ->
+                w.U8 1
+                match refusal with
+                | ArbitrationRefusal.DuplicateKey k ->
+                    w.U8 0
+                    w.I32 k
+                | ArbitrationRefusal.UnknownKey k ->
+                    w.U8 1
+                    w.I32 k
+                | ArbitrationRefusal.NotPermitted k ->
+                    w.U8 2
+                    w.I32 k
+                | ArbitrationRefusal.QueueFull ->
+                    w.U8 3
+                    w.I32 -1
+            | ArbitrationDecision.Activated(k, resumed) ->
+                w.U8 2
+                w.I32 k
+                w.Bool resumed
+            | ArbitrationDecision.Preempted(k, by) ->
+                w.U8 3
+                w.I32 k
+                w.I32 by
+            | ArbitrationDecision.Ended(k, reason) ->
+                let code, by = reasonCode reason
+                w.U8 4
+                w.I32 k
+                w.U8 code
+                w.I32 by
+            | ArbitrationDecision.CancelledAll(by, count) ->
+                w.U8 5
+                w.I32 by
+                w.U32 count
+    w.U32(List.length state.Entries)
+    for e in state.Entries do
+        w.I32 e.Key
+        w.I32 e.Owner
+        w.I32 e.Band
+        w.I32 e.Seq
+        w.U8(
+            match e.Status with
+            | EntryStatus.Pending -> 0
+            | EntryStatus.Active -> 1
+            | EntryStatus.Suspended -> 2
+        )
+        w.Bool e.Started
 
 /// Runs one case and returns its canonical record:
 /// u32 recordByteCount (bytes after this field), u32 caseId, u16 operationId, u16 outcomeTag, payload.
@@ -300,6 +444,10 @@ let runCase (caseId: int) (operation: int) (payload: int[]) =
             | 4 -> bestFirst r body
             | 5 -> xoshiro r body
             | 10 -> fixedSweep r body
+            | 6 -> scc r body
+            | 7 -> unionFind r body
+            | 8 -> percentile r body
+            | 9 -> arbitration r body
             | _ -> failwithf "unknown operation %d" operation
             completed
         with _ ->

@@ -15,6 +15,10 @@
     <Compile Include="FixedTests.fs" />
     <Compile Include="XoshiroTests.fs" />
     <Compile Include="BestFirstTests.fs" />
+    <Compile Include="PercentileTests.fs" />
+    <Compile Include="SccTests.fs" />
+    <Compile Include="UnionFindTests.fs" />
+    <Compile Include="ArbitrationTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

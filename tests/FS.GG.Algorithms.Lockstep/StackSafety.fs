@@ -4,6 +4,7 @@ module FS.GG.Algorithms.Lockstep.StackSafety
 
 open FS.GG.Algorithms.Collections
 open FS.GG.Algorithms.Graph
+open FS.GG.Algorithms.Decision
 
 let size = 100000
 
@@ -47,6 +48,35 @@ let private chainDistances () =
     let ds = BestFirst.distances (fun i -> if i < size - 1 then [ i + 1, 2 ] else []) compare 0
     List.length ds = size && snd (List.last ds) = 2 * (size - 1)
 
+let private sccChain () =
+    let comps = Scc.tarjan [ 0 .. size - 1 ] (fun v -> if v < size - 1 then [ v + 1 ] else [])
+    List.length comps = size && List.head comps = [ size - 1 ]
+
+let private sccRing () =
+    Scc.cycles [ 0 .. size - 1 ] (fun v -> [ (v + 1) % size ]) |> List.map List.length = [ size ]
+
+let private unionFindChain () =
+    let uf = UnionFind.create size
+    for i in size - 1 .. -1 .. 1 do
+        UnionFind.union i (i - 1) uf |> ignore
+    UnionFind.count uf = 1 && UnionFind.representative (size - 1) uf = 0
+
+let private arbitrationQueue () =
+    // 10^4 queued entries in one first-come band, drained by Finished: every step stays iterative.
+    let n = 10000
+    let policy: ArbitrationPolicy<int> =
+        { BandOf = (fun _ -> 1)
+          OrderOf = (fun _ -> BandOrder.EarliestFirst)
+          MaxWaiting = (fun _ -> None) }
+    let mutable s = Arbitration.empty<int, int, unit>
+    for k in 1..n do
+        s <- fst (Arbitration.step policy s (ArbitrationInput.Submit(0, k, (), SubmitMode.Queue)))
+    let mutable drained = 0
+    while s.Active.IsSome do
+        s <- fst (Arbitration.step policy s (ArbitrationInput.Finished s.Active.Value.Key))
+        drained <- drained + 1
+    drained = n
+
 #if FABLE_COMPILER
 /// Canary (Node only): a non-tail recursion over the same 10^5 depth must overflow Node's default stack,
 /// which shows the checks above run where unbounded recursion would fail. Not run on .NET, where a stack
@@ -67,7 +97,11 @@ let run () =
         [ "BinaryHeap 10^5 push/pop", heap
           "IndexedHeap 10^5 insert/decreaseKey/pop", indexedHeap
           "BestFirst.dijkstra 10^5-node chain", chain
-          "BestFirst.distances 10^5-node chain", chainDistances ]
+          "BestFirst.distances 10^5-node chain", chainDistances
+          "Scc.tarjan 10^5-node chain", sccChain
+          "Scc.cycles 10^5-node ring", sccRing
+          "UnionFind 10^5 chained unions", unionFindChain
+          "Arbitration 10^4 queued entries drained", arbitrationQueue ]
     let results = checks |> List.map (fun (name, f) -> name, f ())
     let lines =
         results |> List.map (fun (name, ok) -> "stack-safety: " + name + ": " + (if ok then "ok" else "FAILED"))

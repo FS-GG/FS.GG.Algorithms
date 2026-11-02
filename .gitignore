@@ -16,3 +16,6 @@ fable_modules/
 .idea/
 *.user
 .ionide/
+
+# Python bytecode
+__pycache__/
