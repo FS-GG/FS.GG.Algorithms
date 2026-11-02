@@ -3,6 +3,10 @@
 #
 #   bench/run.sh            record bench/baselines/<host>-<yyyy-mm-dd>-<version>.json (fdev only)
 #   bench/run.sh --smoke    prove the harness (BenchmarkDotNet Dry job, 3 Node iterations); records nothing
+#   bench/run.sh --hosted   full bench on a GitHub-hosted runner (.github/workflows/bench.yml); writes one
+#                           run to $TMPDIR/fsgg-algorithms-bench/hosted-run.json for bench/combine.py. A hosted
+#                           runner has no quiet-host probe: its numbers are for regression comparison under the
+#                           same runner class, not absolute performance.
 #
 # Quiet host (FS.GG.Game#780): a recording run is admitted only by
 #   fdev-lane-capacity.py --max-load-per-core 0.25
@@ -15,7 +19,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work="${TMPDIR:-/tmp}/fsgg-algorithms-bench"
 smoke=false
+hosted=false
 [ "${1:-}" = "--smoke" ] && smoke=true
+[ "${1:-}" = "--hosted" ] && hosted=true
 probe="${FSGG_CAPACITY_PROBE:-$root/../.github/scripts/fdev-lane-capacity.py}"
 version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$root/src/FS.GG.Algorithms/FS.GG.Algorithms.fsproj")"
 rm -rf "$work"
@@ -39,6 +45,26 @@ admit() {
 
 if $smoke; then
   printf '{"verdict":"admit","smoke":true}\n' >"$work/admission.json"
+elif $hosted; then
+  # The runner class stands in for the quiet-host probe; the admission records which runner it was.
+  [ "${GITHUB_ACTIONS:-}" = true ] && [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] \
+    || { echo "bench: --hosted runs only on a GitHub-hosted Actions runner" >&2; exit 2; }
+  [ -z "$(git -C "$root" status --porcelain)" ] || { echo "bench: refusing a dirty tree" >&2; exit 2; }
+  ( cd "$root" && dotnet tool restore >/dev/null )
+  python3 -I - "$work/admission.json" <<PY
+import json, os, platform, re, subprocess, sys
+def out(*cmd):
+    return subprocess.run(cmd, capture_output=True, text=True, cwd="$root").stdout.strip().splitlines()[0]
+json.dump({"verdict": "admit", "hosted": True,
+           "runnerEnvironment": os.environ.get("RUNNER_ENVIRONMENT"), "runnerOs": os.environ.get("RUNNER_OS"),
+           "imageOs": os.environ.get("ImageOS"), "imageVersion": os.environ.get("ImageVersion"),
+           "runnerName": os.environ.get("RUNNER_NAME"), "runId": os.environ.get("GITHUB_RUN_ID"),
+           "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "nproc": os.cpu_count(), "kernel": platform.release(),
+           "dotnetSdk": out("dotnet", "--version"), "node": out("node", "--version"),
+           "fable": re.sub(r"\x1b\[[0-9;]*m", "", out("dotnet", "fable", "--version")).strip()},
+          open(sys.argv[1], "w"))
+PY
+  echo "bench: hosted admission: $(cat "$work/admission.json")"
 else
   [ -f "$probe" ] || { echo "bench: no capacity probe at $probe (set FSGG_CAPACITY_PROBE); recording runs are fdev-only" >&2; exit 2; }
   # A recorded baseline must name the exact source it measured; only a smoke run (which records nothing) may be dirty.
@@ -54,14 +80,15 @@ dotnet run --project "$root/bench/dotnet" -c Release --no-build -- workcounts "$
 fable_compile "$root" "$work/fable-bench.log" bench/fable/FS.GG.Algorithms.Bench.Fable.fsproj --lang javascript --outDir "$work/bench-js"
 printf '{"type":"module"}\n' >"$work/bench-js/package.json"
 
-$smoke || admit
+$smoke || $hosted || admit
 # BenchmarkDotNet finds the project from the working directory, so run it from bench/dotnet.
 ( cd "$root/bench/dotnet" && dotnet run -c Release --no-build -- run "$work/bdn" $($smoke && echo --smoke) )
-$smoke || admit
+$smoke || $hosted || admit
 node "$root/bench/fable/run.mjs" "$work/bench-js" "$work/node.json" $($smoke && echo --smoke)
 
 report="$(ls "$work"/bdn/results/*-report-full.json | head -1)"
 host="$(hostname -s 2>/dev/null || uname -n)"
+$hosted && host="github-hosted-${ImageOS:-unknown}"
 commit="$(git -C "$root" rev-parse HEAD)"
 dirty=""
 if [ -n "$(git -C "$root" status --porcelain)" ]; then
@@ -69,9 +96,13 @@ if [ -n "$(git -C "$root" status --porcelain)" ]; then
 fi
 if $smoke; then
   out="$work/smoke-baseline.json"
+elif $hosted; then
+  out="$work/hosted-run.json"
 else
   out="$root/bench/baselines/$host-$(date -u +%Y-%m-%d)-$version.json"
 fi
 python3 -I "$root/bench/assemble.py" --bdn "$report" --workcounts "$work/workcounts.json" --node "$work/node.json" \
   --admission "$work/admission.json" --version "$version" --commit "$commit" $dirty --host "$host" --out "$out"
-echo "bench: $($smoke && echo 'smoke ok (nothing recorded)' || echo "recorded $out")"
+if $smoke; then echo "bench: smoke ok (nothing recorded)"
+elif $hosted; then echo "bench: hosted run written to $out (combine three with bench/combine.py)"
+else echo "bench: recorded $out"; fi
