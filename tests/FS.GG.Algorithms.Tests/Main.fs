@@ -13,5 +13,6 @@ let main argv =
           PercentileTests.tests
           SccTests.tests
           UnionFindTests.tests
+          TopoSortTests.tests
           ArbitrationTests.tests ]
     |> runTestsWithCLIArgs [] argv

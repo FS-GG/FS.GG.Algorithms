@@ -370,10 +370,45 @@ def arbitration_cases():
     return cases
 
 
+def topo_cases():
+    def encode(nodes, table, durations):
+        w = W().u32(len(nodes))
+        for v in nodes:
+            w.i32(v)
+        w.u32(len(table))
+        for succ in table:
+            w.u32(len(succ))
+            for x in succ:
+                w.i32(x)
+        w.u32(len(durations))
+        for d in durations:
+            w.i32(d)
+        return w.b
+
+    cases = [
+        (11001, 11, encode([0, 1, 2, 3, 4, 5], [[2, 3], [3], [4], [4, 5], [], []], [3, 2, 4, 1, 2, 6])),  # CPM textbook shape
+        (11002, 11, encode([3, 0, 2, 1], [[1], [2], [3], []], [1, 1, 1, 1])),                            # chain given out of order
+        (11003, 11, encode([0, 1, 2, 3], [[1], [2], [0], [3]], [1, 1, 1, 1])),                            # a ring and a self-edge
+        (11004, 11, encode([0, 1, 2], [[1, 1, 9], [2], []], [0, 0, 0])),                                  # repeated and outside edges, zero durations
+        (11005, 11, encode([], [], [])),
+    ]
+    for k, seed in enumerate([111, 112, 113]):
+        rng = Lcg(seed)
+        n = 15 + rng.below(10)
+        table = [[w for w in (rng.below(n) for _ in range(rng.below(4))) if w > v] for v in range(n)]
+        nodes = list(range(n))
+        for i in range(n - 1, 0, -1):  # a fixed shuffle: the order must come from `compare`, not the node list
+            j = rng.below(i + 1)
+            nodes[i], nodes[j] = nodes[j], nodes[i]
+        cases.append((11006 + k, 11, encode(nodes, table, [rng.below(10) for _ in range(n)])))
+    return cases
+
+
 def all_cases():
     # Order is append-only: PR 1's cases (operations 1-5 and the operation 10 sweep) stay a byte-identical prefix.
     return (heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases()
-            + sweep_cases() + scc_cases() + union_find_cases() + percentile_cases() + arbitration_cases())
+            + sweep_cases() + scc_cases() + union_find_cases() + percentile_cases() + arbitration_cases()
+            + topo_cases())
 
 
 def encode_cases(cases) -> bytes:
@@ -643,6 +678,55 @@ def py_arbitrate(ops):
     return out, entries
 
 
+def py_topo(nodes, table, durations):
+    """Kahn with a min-heap on int nodes (the oracle's own heapq), and CPM by definition."""
+    verts = []
+    for v in nodes:
+        if v not in verts:
+            verts.append(v)
+    vs = set(verts)
+    succ = {v: [w for w in (table[v] if 0 <= v < len(table) else []) if w in vs] for v in verts}
+    indeg = {v: 0 for v in verts}
+    for v in verts:
+        for w in succ[v]:
+            indeg[w] += 1
+    ready = [v for v in verts if indeg[v] == 0]
+    heapq.heapify(ready)
+    order = []
+    while ready:
+        v = heapq.heappop(ready)
+        order.append(v)
+        for w in succ[v]:
+            indeg[w] -= 1
+            if indeg[w] == 0:
+                heapq.heappush(ready, w)
+    if len(order) < len(verts):
+        return None, py_tarjan(nodes, table)[1]
+    dur = {v: (durations[v] if 0 <= v < len(durations) else 0) for v in verts}
+    preds = {v: [u for u in order for w in succ[u] if w == v] for v in verts}
+    es, ef = {}, {}
+    for v in order:
+        es[v] = max([ef[p] for p in preds[v]], default=0)
+        ef[v] = es[v] + dur[v]
+    makespan = max(ef.values(), default=0)
+    lf, ls = {}, {}
+    for v in reversed(order):
+        lf[v] = min([ls[w] for w in succ[v]], default=makespan)
+        ls[v] = lf[v] - dur[v]
+    path = []
+    if order:
+        cur = next(v for v in order if ef[v] == makespan)
+        path = [cur]
+        while True:
+            cand = [p for p in order if p in preds[cur] and ef[p] == es[cur]]
+            if not cand:
+                break
+            cur = cand[0]
+            path.insert(0, cur)
+    acts = [(v, dur[v], es[v], ef[v], ls[v], lf[v], ls[v] - es[v]) for v in order]
+    return (order, makespan, path, acts), None
+
+
 def oracle_payload(op: int, r: R) -> W:
     w = W()
     if op == 1:
@@ -848,6 +932,28 @@ def oracle_payload(op: int, r: R) -> W:
         w.u32(len(final))
         for e in final:
             w.i32(e["key"]).i32(e["owner"]).i32(e["band"]).i32(e["seq"]).u8(e["status"]).u8(1 if e["started"] else 0)
+    elif op == 11:
+        nodes = [r.i32() for _ in range(r.u32())]
+        table = [[r.i32() for _ in range(r.u32())] for _ in range(r.u32())]
+        durations = [r.i32() for _ in range(r.u32())]
+        result, cycles = py_topo(nodes, table, durations)
+        if result is None:
+            w.u8(0).u32(len(cycles))
+            for c in cycles:
+                w.u32(len(c))
+                for x in c:
+                    w.i32(x)
+        else:
+            order, makespan, path, acts = result
+            w.u8(1).u32(len(order))
+            for x in order:
+                w.i32(x)
+            w.i32(makespan).u32(len(path))
+            for x in path:
+                w.i32(x)
+            for a in acts:
+                for x in a:
+                    w.i32(x)
     else:
         raise ValueError(op)
     return w

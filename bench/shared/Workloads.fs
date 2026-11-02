@@ -107,6 +107,17 @@ let prepareUnionFind (n: int) : unit -> int =
             if UnionFind.union pairs.[2 * i] pairs.[2 * i + 1] uf then merged <- merged + 1
         merged
 
+/// graph/topological-sort-cpm: Kahn plus the critical-path method on a seeded random DAG of n activities
+/// (edges only to higher ids, durations 0..9). Work: the makespan.
+let prepareTopoCpm (n: int) : unit -> int =
+    let succ = digraph n |> Array.mapi (fun v l -> l |> List.filter (fun w -> w > v))
+    let durations = ints n 10
+    let nodes = [ 0 .. n - 1 ]
+    fun () ->
+        match TopoSort.criticalPath compare nodes (fun v -> succ.[v]) (fun v -> durations.[v]) with
+        | Ok s -> s.Makespan
+        | Error _ -> -1
+
 /// The nearest-rank sample of ascending timings, for the Node harness's summaries (harvest 20: the library's
 /// own percentile, exact integer rank).
 let nearestRank (percent: int) (sortedSamples: float[]) = Percentile.ofSorted percent 100 sortedSamples
@@ -119,4 +130,5 @@ let kernels: (string * int list * (int -> unit -> int)) list =
       "graph/best-first-search/astar-grid", [ 32; 128; 512 ], prepareAstar
       "graph/best-first-search/dijkstra-grid", [ 32; 128; 512 ], prepareDijkstra
       "graph/iterative-tarjan-scc/random-digraph", [ 1000; 10000; 100000 ], prepareScc
-      "graph/union-find/random-unions", [ 1000; 10000; 100000 ], prepareUnionFind ]
+      "graph/union-find/random-unions", [ 1000; 10000; 100000 ], prepareUnionFind
+      "graph/topological-sort-cpm/random-dag", [ 1000; 10000; 100000 ], prepareTopoCpm ]

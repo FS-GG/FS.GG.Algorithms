@@ -69,14 +69,20 @@
       "operation": "Fixed (Q16.16) fixed-seed sweep",
       "input": "i32 seed, u32 pairs; per pair four xoshiro128** draws x, y, z, t give a = x >>> (y & 15) and b = z >>> (t & 15) (arithmetic shifts)",
       "payload": "u32 pairs, then 9 i32 digests (h = imul(h xor r, 16777619) from 0x811C9DC5) of add, sub, mul, div, ofRatio, sqrt a, neg a, toIntRound a, compare"
+    },
+    {
+      "id": 11,
+      "operation": "TopoSort.sort and TopoSort.criticalPath with compare on int nodes",
+      "input": "list<i32> nodes, u32 vertexCount and per vertex list<i32> successors, u32 count and i32 durations by vertex",
+      "payload": "u8 sorted: 1 list<i32> order, i32 makespan, list<i32> critical path, then per activity i32 node, duration, earliestStart, earliestFinish, latestStart, latestFinish, slack | 0 list<list<i32>> cycles"
     }
   ],
   "inputs": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/cases.bin",
-  "inputsSha256": "8a70df4e57462b59ac5abf5f5e4cf04a1425d9fe0cca77cdeb09ff9e71e8a889",
+  "inputsSha256": "b7125945f81861ec0f871e3545e91b3b9e48a15d3ddae8cf8235ea73c0a000d1",
   "inputsGenerator": "scripts/lockstep-fixtures.py generate (fixed constants and a 32-bit LCG; no clock, network or host randomness)",
   "oracle": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/expected.bin",
-  "oracleSha256": "b78cb1c05c9208f7de257ad1ec27806a31f0f6c233725acdb9252ef0682f7815",
-  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; optimal cost, path validity and settle order for 4",
+  "oracleSha256": "868153d2d42e3bdaa433854ba0ef1240678354b0539b3161dcb16f75b554c39a",
+  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; Kahn on Python's heapq with CPM by definition for 11; optimal cost, path validity and settle order for 4",
   "outcomeTags": {
     "0": "operation completed normally",
     "1": "operation refused its input (an exception); the payload is empty"

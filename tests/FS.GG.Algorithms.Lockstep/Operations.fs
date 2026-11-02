@@ -430,6 +430,41 @@ let arbitration (r: Reader) (w: Writer) =
         )
         w.Bool e.Started
 
+/// Operation 11: TopoSort.sort and TopoSort.criticalPath with `compare` on int nodes. Input: list<i32> nodes,
+/// u32 vertexCount and per vertex list<i32> successors, then u32 count and i32 durations by vertex.
+/// Output: u8 sorted (1 ok: list<i32> order | 0 cycles: list<list<i32>>); when sorted, i32 makespan,
+/// list<i32> critical path, and per activity in order i32 node, duration, es, ef, ls, lf, slack.
+let topoSort (r: Reader) (w: Writer) =
+    let nodes = List.init (r.U32()) (fun _ -> r.I32())
+    let table = Array.init (r.U32()) (fun _ -> List.init (r.U32()) (fun _ -> r.I32()))
+    let durations = Array.init (r.U32()) (fun _ -> r.I32())
+    let succ (v: int) = if v >= 0 && v < table.Length then table.[v] else []
+    let dur (v: int) = if v >= 0 && v < durations.Length then durations.[v] else 0
+    let writeList (l: int list) =
+        w.U32(List.length l)
+        List.iter w.I32 l
+    match TopoSort.sort compare nodes succ with
+    | Error cycles ->
+        w.U8 0
+        w.U32(List.length cycles)
+        List.iter writeList cycles
+    | Ok order ->
+        w.U8 1
+        writeList order
+        match TopoSort.criticalPath compare nodes succ dur with
+        | Error _ -> failwith "criticalPath disagrees with sort"
+        | Ok s ->
+            w.I32 s.Makespan
+            writeList s.CriticalPath
+            for a in s.Activities do
+                w.I32 a.Node
+                w.I32 a.Duration
+                w.I32 a.EarliestStart
+                w.I32 a.EarliestFinish
+                w.I32 a.LatestStart
+                w.I32 a.LatestFinish
+                w.I32 a.Slack
+
 /// Runs one case and returns its canonical record:
 /// u32 recordByteCount (bytes after this field), u32 caseId, u16 operationId, u16 outcomeTag, payload.
 let runCase (caseId: int) (operation: int) (payload: int[]) =
@@ -444,6 +479,7 @@ let runCase (caseId: int) (operation: int) (payload: int[]) =
             | 4 -> bestFirst r body
             | 5 -> xoshiro r body
             | 10 -> fixedSweep r body
+            | 11 -> topoSort r body
             | 6 -> scc r body
             | 7 -> unionFind r body
             | 8 -> percentile r body

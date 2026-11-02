@@ -18,6 +18,7 @@
     <Compile Include="PercentileTests.fs" />
     <Compile Include="SccTests.fs" />
     <Compile Include="UnionFindTests.fs" />
+    <Compile Include="TopoSortTests.fs" />
     <Compile Include="ArbitrationTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
