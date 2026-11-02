@@ -1,24 +1,29 @@
 name: release
 
 # Publishes FS.GG.Algorithms to the org GitHub Packages feed and to public nuget.org: the byte-identical
-# .nupkg, never re-packed between pushes (ADR-0012 dual publish, ADR-0013 Trusted Publishing OIDC, ADR-0039
-# nuget.org as the read path, ADR-0097 one org-wide serialized publication writer, ADR-0098 §2).
+# .nupkg, never re-packed once any feed has accepted it (ADR-0012 dual publish, ADR-0013 Trusted Publishing
+# OIDC, ADR-0039 nuget.org as the read path, ADR-0097 one org-wide serialized publication writer, ADR-0098 §2).
 #
-# Version: the EVALUATED <Version> of src/FS.GG.Algorithms (msbuild -getProperty), stable only (no
-# prerelease suffix: the org Renovate preset ignores unstable versions). A pushed tag `v<version>` is a
-# coherence check against it, never the source of truth.
+# Three jobs:
+#   verify    read-only: gates (locked restore, build, property tests, Fable proof) and, for a fresh publish,
+#             the one pack, retained as an artifact with its sha256
+#   publish   holds the credentials, behind the org writer lock: verifies the archive's sha256, refuses to
+#             re-push a version a feed already holds unless resuming, pushes GitHub Packages then nuget.org,
+#             and records publish-state.json whatever happens
+#   readback  read-only: payload parity of both feeds with the archive, then a clean consumer restored from
+#             nuget.org alone, run on .NET and under Fable
 #
-# Triggers:
-#   push tag v<version>                         publish
-#   workflow_dispatch mode=dry-run              gates and pack only; no credential exchange, no push
-#   workflow_dispatch mode=login-preflight      gates, pack, and the nuget.org OIDC token exchange; NO push
-#                                               (proves the Trusted Publishing policy exists before any
-#                                               feed write, so a missing policy cannot half-publish)
-#   workflow_dispatch mode=publish              publish from the dispatched ref
+# Version: the EVALUATED <Version> of src/FS.GG.Algorithms, stable only. Modes:
+#   push tag v<version>                     publish (the tag must equal <Version>)
+#   dispatch dry-run          (any ref)     verify and pack only; no credential, no push
+#   dispatch login-preflight  (any ref)     verify, pack, and the nuget.org OIDC exchange; NO push
+#   dispatch publish          (tag ref)     publish; the dispatched ref must be refs/tags/v<version>
+#   dispatch resume           (tag ref)     re-push the ORIGINAL archive of `source_run_id` (same commit,
+#                                           this workflow), after a partial publish; nothing is re-packed
+#   dispatch readback         (tag ref)     readback only, after a readback timeout; nothing is pushed
 #
 # The nuget.org Trusted Publishing policy is bound to: owner FS-GG, repository FS.GG.Algorithms, workflow
-# file release.yml. Renaming this file invalidates it. Without the policy, NuGet/login fails closed with a
-# 401: never a silent no-op.
+# file release.yml. Without it, NuGet/login fails closed with a 401 (login-preflight finds that first).
 
 on:
   push:
@@ -26,10 +31,15 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "dry-run | login-preflight | publish"
+        description: "dry-run | login-preflight | publish | resume | readback"
         type: choice
-        options: [dry-run, login-preflight, publish]
+        options: [dry-run, login-preflight, publish, resume, readback]
         default: dry-run
+      source_run_id:
+        description: "resume only: the run whose retained original archive is re-pushed"
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -39,25 +49,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Pack & publish FS.GG.Algorithms [org-publication-writer]
+  verify:
+    name: verify
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    # Canonical repository only: fork tags and dispatches never run this.
+    timeout-minutes: 40
     if: github.repository == 'FS-GG/FS.GG.Algorithms'
-    # Least privilege: packages: write for the org feed (GITHUB_TOKEN, never a PAT); id-token: write mints
-    # the GitHub OIDC token that nuget.org exchanges for a short-lived key.
     permissions:
       contents: read
-      packages: write
-      id-token: write
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      mode: ${{ steps.v.outputs.mode }}
+      artifact: ${{ steps.v.outputs.artifact }}
     steps:
-      - name: Acquire org publication writer lock
-        uses: FS-GG/.github/.github/actions/publication-writer-lock@c799a9f9b21d52eb9766cf0950722e3e55145d39 # ADR-0097
-        with:
-          max-wait-minutes: 30
-        timeout-minutes: 32
-
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -73,43 +76,56 @@ jobs:
         with:
           node-version: "26"
 
-      - name: Resolve version, mode and publish decision
+      - name: Resolve version, mode and ref rules
         id: v
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          REF: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
           MODE: ${{ inputs.mode }}
+          SOURCE_RUN: ${{ inputs.source_run_id }}
         run: |
           set -euo pipefail
           version="$(dotnet msbuild src/FS.GG.Algorithms/FS.GG.Algorithms.fsproj -getProperty:Version | tr -d '[:space:]')"
           [ -n "$version" ] || { echo "::error::could not evaluate <Version>"; exit 1; }
           case "$version" in *-*) echo "::error::version $version is a prerelease; publish a stable 0.x version"; exit 1 ;; esac
-          if [ "$EVENT" = "push" ]; then
-            [ "${REF#v}" = "$version" ] || { echo "::error::tag $REF does not match <Version> $version"; exit 1; }
-            mode=publish
-          else
-            mode="$MODE"
+          mode="$MODE"
+          [ "$EVENT" = "push" ] && mode=publish
+          case "$mode" in
+            publish|resume|readback)
+              # Feed writes and readback of a release happen only from the release tag, never from a branch.
+              [ "$REF" = "refs/tags/v$version" ] || { echo "::error::mode $mode requires ref refs/tags/v$version, not $REF"; exit 1; } ;;
+          esac
+          if [ "$mode" = resume ]; then
+            case "$SOURCE_RUN" in ''|*[!0-9]*) echo "::error::resume needs a numeric source_run_id"; exit 1 ;; esac
+          elif [ -n "$SOURCE_RUN" ]; then
+            echo "::error::source_run_id is only valid with mode resume"; exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "release: FS.GG.Algorithms $version, mode $mode, commit $GITHUB_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "artifact=fs-gg-algorithms-release-$version-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "release: FS.GG.Algorithms $version, mode $mode, ref $REF, commit $GITHUB_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # Publish gates on the exact commit (ADR-0098 §4): locked restore, warnings-as-errors build, the property
-      # tests, and the Fable proof (negative control, cross-runtime corpus, independent oracle, packed consumer).
+      # Gates on the exact commit (ADR-0098 §4), before any credential or feed effect.
       - name: Locked restore
+        if: steps.v.outputs.mode != 'readback'
         run: dotnet restore FS.GG.Algorithms.slnx --locked-mode
 
       - name: Build
+        if: steps.v.outputs.mode != 'readback'
         run: dotnet build FS.GG.Algorithms.slnx --no-restore -c Release
 
       - name: Property tests
+        if: steps.v.outputs.mode != 'readback'
         run: dotnet run --project tests/FS.GG.Algorithms.Tests -c Release --no-build -- --no-spinner
 
       - name: Fable proof
+        if: steps.v.outputs.mode != 'readback'
         run: eng/fable-proof.sh "$RUNNER_TEMP/fable-proof"
 
-      - name: Pack (once; these bytes are what both feeds receive)
+      # The one pack. A resume or readback never packs: it uses the original archive of the source run.
+      - name: Pack once
+        if: steps.v.outputs.mode == 'dry-run' || steps.v.outputs.mode == 'login-preflight' || steps.v.outputs.mode == 'publish'
         id: pack
         shell: bash
         run: |
@@ -117,14 +133,8 @@ jobs:
           dotnet pack src/FS.GG.Algorithms -c Release --no-restore -o artifacts/packages
           archive="artifacts/packages/FS.GG.Algorithms.${{ steps.v.outputs.version }}.nupkg"
           test -s "$archive"
-          (cd artifacts/packages && sha256sum "$(basename "$archive")" | tee ORIGINAL_SHA256)
-          echo "path=$archive" >> "$GITHUB_OUTPUT"
-
-      - name: Verify the archive (dependencies, Fable view, metadata)
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -I - "${{ steps.pack.outputs.path }}" <<'PY'
+          (cd artifacts/packages && sha256sum "$(basename "$archive")" > ORIGINAL_SHA256 && cat ORIGINAL_SHA256)
+          python3 -I - "$archive" <<'PY'
           import re, sys, zipfile
           z = zipfile.ZipFile(sys.argv[1])
           names = set(z.namelist())
@@ -134,75 +144,230 @@ jobs:
           assert "fable/FS.GG.Algorithms.fsproj" in names
           for need in ("README.md", "LICENSE", "THIRD-PARTY-NOTICES.md", "fable-compatibility/compatibility-profile.v1.json"):
               assert need in names, need
-          assert "<license type=\"expression\">MIT</license>" in nuspec
+          assert '<license type="expression">MIT</license>' in nuspec
           print(f"archive ok: dependencies {deps}; {sum(1 for n in names if n.startswith('fable/'))} fable/ files")
           PY
 
-      - name: Retain the original archive before any push
+      - name: Retain the original archive (before any credential or push)
+        if: steps.pack.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: fs-gg-algorithms-release-${{ steps.v.outputs.version }}-${{ github.sha }}
+          name: ${{ steps.v.outputs.artifact }}
           path: |
-            ${{ steps.pack.outputs.path }}
+            artifacts/packages/FS.GG.Algorithms.${{ steps.v.outputs.version }}.nupkg
             artifacts/packages/ORIGINAL_SHA256
           if-no-files-found: error
           retention-days: 90
 
-      # The OIDC exchange happens in login-preflight and publish. In login-preflight nothing is pushed: it only
-      # proves the nuget.org Trusted Publishing policy accepts this workflow.
+  publish:
+    name: publish FS.GG.Algorithms [org-publication-writer]
+    needs: verify
+    if: needs.verify.outputs.mode == 'login-preflight' || needs.verify.outputs.mode == 'publish' || needs.verify.outputs.mode == 'resume'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # Least privilege: packages: write for the org feed (GITHUB_TOKEN, never a PAT); id-token: write for the
+    # nuget.org OIDC exchange; actions: read to fetch a resume's original archive from its source run.
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+      id-token: write
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+      MODE: ${{ needs.verify.outputs.mode }}
+    steps:
+      - name: Acquire org publication writer lock
+        uses: FS-GG/.github/.github/actions/publication-writer-lock@c799a9f9b21d52eb9766cf0950722e3e55145d39 # ADR-0097
+        with:
+          max-wait-minutes: 30
+        timeout-minutes: 32
+
+      - name: Install the .NET SDK (for dotnet nuget push)
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Resolve the archive's source run
+        id: src
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          if [ "$MODE" = resume ]; then
+            # The source run must be this workflow, on this repository, for this exact commit.
+            info="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" --jq '[.path, .head_sha, .repository.full_name] | @tsv')"
+            path="$(cut -f1 <<<"$info")"; sha="$(cut -f2 <<<"$info")"; repo="$(cut -f3 <<<"$info")"
+            [ "$repo" = "$GITHUB_REPOSITORY" ] || { echo "::error::source run belongs to $repo"; exit 1; }
+            [ "$path" = ".github/workflows/release.yml" ] || { echo "::error::source run is $path, not release.yml"; exit 1; }
+            [ "$sha" = "$GITHUB_SHA" ] || { echo "::error::source run built $sha, not $GITHUB_SHA"; exit 1; }
+            echo "run=$SOURCE_RUN" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download the original archive
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: fs-gg-algorithms-release-${{ needs.verify.outputs.version }}-${{ github.sha }}
+          path: archive
+          run-id: ${{ steps.src.outputs.run }}
+          github-token: ${{ github.token }}
+
+      - name: Verify the archive's sha256 against its recorded original
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd archive
+          sha256sum --check --strict ORIGINAL_SHA256
+          echo "path=$PWD/FS.GG.Algorithms.$VERSION.nupkg" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(cut -d' ' -f1 ORIGINAL_SHA256)" >> "$GITHUB_OUTPUT"
+
+      # A fresh publish refuses a version that a feed already holds: re-packing is not byte-identical, so the
+      # only way to finish a partial publish is `resume` with the original archive.
+      - name: Feed state before any push
+        id: before
+        if: env.MODE != 'login-preflight'
+        shell: bash
+        env:
+          PACKAGE_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="${VERSION,,}"
+          on_nuget=false; on_github=false
+          curl -fsS -o /dev/null "https://api.nuget.org/v3-flatcontainer/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" && on_nuget=true || true
+          curl -fsS -o /dev/null -u "${{ github.actor }}:$PACKAGE_TOKEN" "https://nuget.pkg.github.com/FS-GG/download/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" && on_github=true || true
+          echo "before: github=$on_github nuget.org=$on_nuget"
+          if [ "$MODE" = publish ] && { $on_nuget || $on_github; }; then
+            echo "::error::$VERSION is already on a feed (github=$on_github nuget.org=$on_nuget). Never re-pack: dispatch mode resume with source_run_id of the run whose archive was pushed."
+            exit 1
+          fi
+          echo "github=$on_github" >> "$GITHUB_OUTPUT"
+          echo "nuget=$on_nuget" >> "$GITHUB_OUTPUT"
+
       - name: NuGet login (OIDC to a short-lived nuget.org key)
-        if: steps.v.outputs.mode == 'login-preflight' || steps.v.outputs.mode == 'publish'
         id: login
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
         with:
           user: ${{ secrets.NUGET_USER || 'Paradigma11' }}
 
       - name: Login preflight result
-        if: steps.v.outputs.mode == 'login-preflight'
+        if: env.MODE == 'login-preflight'
         run: |
           echo "login-preflight: nuget.org Trusted Publishing exchange succeeded, nothing was pushed" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Push to the org GitHub Packages feed
-        if: steps.v.outputs.mode == 'publish'
+        id: push_github
+        if: env.MODE != 'login-preflight'
         run: |
-          dotnet nuget push "${{ steps.pack.outputs.path }}" \
+          dotnet nuget push "${{ steps.archive.outputs.path }}" \
             --source https://nuget.pkg.github.com/FS-GG/index.json \
             --api-key ${{ secrets.GITHUB_TOKEN }} \
             --skip-duplicate
 
       - name: Push the byte-identical package to nuget.org
-        if: steps.v.outputs.mode == 'publish'
+        id: push_nuget
+        if: env.MODE != 'login-preflight'
         run: |
-          dotnet nuget push "${{ steps.pack.outputs.path }}" \
+          dotnet nuget push "${{ steps.archive.outputs.path }}" \
             --source https://api.nuget.org/v3/index.json \
             --api-key ${{ steps.login.outputs.NUGET_API_KEY }} \
             --skip-duplicate
 
-      # Readback: download the exact version from each feed (bounded wait for propagation), compare every entry
-      # except feed signatures with the original archive, then restore a clean consumer from nuget.org alone
-      # and run it on .NET and under Fable.
-      - name: Read back both feeds and run a clean nuget.org consumer (.NET and Fable)
-        if: steps.v.outputs.mode == 'publish'
+      # The publish state is recorded whatever happened, so a partial publish is visible and resumable.
+      - name: Record the publish state
+        if: always() && env.MODE != 'login-preflight'
         shell: bash
         env:
-          VERSION: ${{ steps.v.outputs.version }}
+          GITHUB_PUSH: ${{ steps.push_github.outcome }}
+          NUGET_PUSH: ${{ steps.push_nuget.outcome }}
+          SHA256: ${{ steps.archive.outputs.sha256 }}
+          SOURCE: ${{ steps.src.outputs.run }}
+        run: |
+          set -euo pipefail
+          mkdir -p state
+          printf '{"package":"FS.GG.Algorithms","version":"%s","commit":"%s","archiveSha256":"%s","archiveRun":"%s","run":"%s","mode":"%s","githubPackagesPush":"%s","nugetOrgPush":"%s"}\n' \
+            "$VERSION" "$GITHUB_SHA" "$SHA256" "$SOURCE" "$GITHUB_RUN_ID" "$MODE" "$GITHUB_PUSH" "$NUGET_PUSH" | tee state/publish-state.json
+          {
+            echo "publish state: GitHub Packages push $GITHUB_PUSH, nuget.org push $NUGET_PUSH (archive sha256 $SHA256 from run $SOURCE)"
+            if [ "$GITHUB_PUSH" != success ] || [ "$NUGET_PUSH" != success ]; then
+              echo "PARTIAL OR FAILED PUBLISH: finish with mode resume and source_run_id $SOURCE on ref refs/tags/v$VERSION; never re-pack"
+            fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain the publish state
+        if: always() && env.MODE != 'login-preflight'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fs-gg-algorithms-publish-state-${{ needs.verify.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: state/publish-state.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  readback:
+    name: readback
+    needs: [verify, publish]
+    # After a publish or resume, or on its own (mode readback) to finish after a readback timeout.
+    if: >-
+      always() && needs.verify.result == 'success' &&
+      (((needs.verify.outputs.mode == 'publish' || needs.verify.outputs.mode == 'resume') && needs.publish.result == 'success') ||
+       needs.verify.outputs.mode == 'readback')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "26"
+
+      # Readback compares both feeds with the bytes nuget.org now serves AND with the original archive when it is
+      # available in this run (publish); a standalone readback compares the two feeds with each other.
+      - name: Download this run's original archive (publish only)
+        if: needs.verify.outputs.mode == 'publish'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: fs-gg-algorithms-release-${{ needs.verify.outputs.version }}-${{ github.sha }}
+          path: archive
+
+      - name: Read back both feeds and run a clean nuget.org consumer (.NET and Fable)
+        shell: bash
+        env:
           PACKAGE_USER: ${{ github.actor }}
-          PACKAGE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ORIGINAL: ${{ steps.pack.outputs.path }}
+          PACKAGE_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           work="$RUNNER_TEMP/readback"
           mkdir -p "$work"
+          # Bounded propagation wait: 20 attempts, 30 s apart (10 minutes per feed). On a timeout, nothing was
+          # lost: dispatch mode readback on the tag later.
           fetch() { # fetch URL OUT [auth]
-            for attempt in $(seq 1 40); do
+            for attempt in $(seq 1 20); do
               if [ -n "${3:-}" ]; then
                 curl -fsSL -u "$PACKAGE_USER:$PACKAGE_TOKEN" -o "$2" "$1" && return 0
               else
                 curl -fsSL -o "$2" "$1" && return 0
               fi
+              echo "not yet available ($attempt/20): $1"
               sleep 30
             done
-            echo "::error::$1 not available after 20 minutes"; return 1
+            echo "::error::$1 not available after 10 minutes; rerun with mode readback"; return 1
           }
           base_address() { # base_address INDEX [auth]: the feed's PackageBaseAddress, read from its service index
             if [ -n "${2:-}" ]; then curl -fsS -u "$PACKAGE_USER:$PACKAGE_TOKEN" "$1"; else curl -fsS "$1"; fi \
@@ -213,20 +378,22 @@ jobs:
           org_base="$(base_address https://nuget.pkg.github.com/FS-GG/index.json auth)"
           fetch "${nuget_base%/}/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" "$work/nugetorg.nupkg"
           fetch "${org_base%/}/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" "$work/github.nupkg" auth
-          python3 -I - "$ORIGINAL" "$work/nugetorg.nupkg" "$work/github.nupkg" <<'PY'
+          original="archive/FS.GG.Algorithms.$VERSION.nupkg"
+          [ -f "$original" ] || original="$work/github.nupkg"
+          python3 -I - "$original" "$work/nugetorg.nupkg" "$work/github.nupkg" <<'PY'
           import hashlib, sys, zipfile
           def payload(path):
               z = zipfile.ZipFile(path)
               # Feeds may add a signature and rewrite core properties; every other entry must be byte-identical.
               excluded = lambda n: n == ".signature.p7s" or n.startswith("package/services/metadata/core-properties/")
               return {n: hashlib.sha256(z.read(n)).hexdigest() for n in z.namelist() if not excluded(n)}
-          original = payload(sys.argv[1])
+          reference = payload(sys.argv[1])
           for feed in sys.argv[2:]:
               got = payload(feed)
-              if got != original:
-                  diff = sorted(set(got.items()) ^ set(original.items()))
-                  sys.exit(f"payload of {feed} differs from the original archive: {diff[:6]}")
-              print(f"readback: {feed}: {len(got)} entries equal the original archive (signature and core properties excluded)")
+              if got != reference:
+                  diff = sorted(set(got.items()) ^ set(reference.items()))
+                  sys.exit(f"payload of {feed} differs from {sys.argv[1]}: {diff[:6]}")
+              print(f"readback: {feed}: {len(got)} entries equal {sys.argv[1]} (signature and core properties excluded)")
           PY
           consumer="$work/consumer"
           cp -r eng/fable-proof/consumer "$consumer"

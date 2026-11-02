@@ -84,20 +84,24 @@ Work counts may gate regressions; timings never do.
 ## Release
 
 `.github/workflows/release.yml` publishes the library. It pushes the byte-identical `.nupkg` to the org GitHub
-Packages feed first, then to nuget.org through Trusted Publishing (OIDC). It runs under the org publication
-writer lock (ADR-0097). The release gates are the locked restore, the build, the property tests and the Fable
-proof, run on the exact commit before anything is pushed.
+Packages feed first, then to nuget.org through Trusted Publishing (OIDC). It has three jobs:
 
-| Trigger | Effect |
-|---|---|
-| tag `v<version>` | publish; the tag must equal `<Version>` |
-| dispatch `dry-run` | gates and pack only |
-| dispatch `login-preflight` | gates, pack and the nuget.org token exchange, with **no push**: it proves the Trusted Publishing policy before any feed write |
-| dispatch `publish` | publish from the dispatched ref |
+- **`verify`** (read-only) runs the gates on the exact commit: locked restore, build, property tests and the
+  Fable proof. For a fresh publish it also does the one pack, retained as an artifact with its sha256.
+- **`publish`** holds the credentials, behind the org publication writer lock (ADR-0097). It verifies the
+  archive's sha256, then pushes. It refuses to re-push a version that a feed already holds, because a
+  re-pack is not byte-identical; it always records `publish-state.json`.
+- **`readback`** (read-only) checks that both feeds match the archive, apart from feed signatures and core
+  properties. It then restores a clean consumer from nuget.org alone and runs it on .NET and under Fable.
 
-After a publish, the job reads back both feeds: every entry except feed signatures and core properties must
-equal the original archive. It then restores a clean consumer from nuget.org alone and runs it on .NET and
-under Fable.
+| Trigger | Ref | Effect |
+|---|---|---|
+| push tag `v<version>` | the tag | publish; the tag must equal `<Version>` |
+| dispatch `dry-run` | any | verify and pack only |
+| dispatch `login-preflight` | any | verify, pack and the nuget.org token exchange, with **no push** |
+| dispatch `publish` | `refs/tags/v<version>` | publish |
+| dispatch `resume` + `source_run_id` | `refs/tags/v<version>` | re-push the **original** archive of a partial publish (same commit, this workflow); nothing is re-packed |
+| dispatch `readback` | `refs/tags/v<version>` | readback only, after a readback timeout |
 
 ## Licence
 
