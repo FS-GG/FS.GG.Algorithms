@@ -401,6 +401,9 @@ def topo_cases():
             j = rng.below(i + 1)
             nodes[i], nodes[j] = nodes[j], nodes[i]
         cases.append((11006 + k, 11, encode(nodes, table, [rng.below(10) for _ in range(n)])))
+    # Two equally critical predecessors of 2 (both finish at 3). The node list and 1's edge come first, but the
+    # trace takes the FIRST predecessor in topological order, which is 0 under compare (review note on #4).
+    cases.append((11009, 11, encode([1, 0, 2], [[2], [2], []], [3, 3, 1])))
     return cases
 
 

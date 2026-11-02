@@ -60,10 +60,17 @@ type BtState =
 /// - Composites have memory. A Sequence or Selector whose child returned Running resumes at that child on
 ///   the next tick, without re-ticking the children before it. A Parallel keeps the results of children that
 ///   already finished, and re-ticks only the unfinished ones.
-/// - A node that finishes (Success or Failure) resets its whole subtree to idle, which also halts any
-///   still-running descendant, so its next activation starts fresh.
+/// - Invariant: after a node finishes (Success or Failure), its whole subtree is idle, with every descendant's
+///   memory cleared. Its next activation therefore starts fresh. A Parallel that finishes halts its
+///   still-running children to keep the invariant.
 /// - The blackboard 'B is the caller's immutable value, threaded through the leaves in tick order and
 ///   returned. A tick touches nothing else: equal (program, state, blackboard) give equal results.
+///
+/// SCOPE: MEMORY COMPOSITES ONLY. Sequence and Selector resume at their running child; they do not re-check
+/// earlier children on later ticks. There is no reactive Sequence or Fallback (the Colledanchise-Ögren
+/// defaults), so a higher-priority branch cannot interrupt a running lower one: no priority interrupts.
+/// Reactive composites, which must halt the abandoned running branch, are a separate follow-up item under
+/// FS-GG/.github#5224.
 ///
 /// DETERMINISM (`LockstepExact` for a deterministic `leaf`). The memory is integers, and the tick order is the
 /// fixed child order. The interpreter is an explicit stack machine, so a tree 10^5 levels deep ticks under

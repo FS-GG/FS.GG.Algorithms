@@ -30,10 +30,14 @@ type CpmSchedule<'N> =
 ///
 /// DETERMINISM (`LockstepExact` for deterministic `successors`, `order` and `duration`). Kahn's ready set is
 /// the F1 `BinaryHeap` ordered by the caller's `order`, so among nodes whose predecessors are all placed,
-/// the least by `order` comes next. With a total `order` the result is the unique least topological order
-/// under it. Any tie left by a non-total order falls to the heap's frozen FIFO: the node that became ready
-/// first comes first (the initial sources become ready in `nodes` order, the others when their last
-/// predecessor is placed, in that predecessor's successor-list order).
+/// the least by `order` comes next.
+/// - `order` MUST be a total preorder: reflexive, transitive and total, as `compare` on a key is.
+/// - With a total order (no ties between distinct nodes) the result is the unique least topological order.
+/// - Ties under a total preorder fall to the heap's frozen FIFO: the node that became ready first comes
+///   first. The initial sources become ready in `nodes` order; the others when their last predecessor is
+///   placed, in that predecessor's successor-list order.
+/// - If `order` is not a total preorder (for example intransitive), the result is still a valid topological
+///   order and still deterministic, but which one is unspecified, and it may change between versions.
 ///
 /// CYCLES. A graph with a cycle has no topological order. The result is then `Error` with exactly the
 /// components `Scc.cycles` reports: every strongly connected component with more than one node or a

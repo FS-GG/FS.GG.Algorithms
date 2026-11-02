@@ -70,14 +70,14 @@ let tests =
                   List.sort order = nodes g
                   && Seq.forall (fun (u, v) -> pos.[u] < pos.[v]) [ for u in 0 .. g.N - 1 do for v in g.Succ.[u] do yield u, v ]
 
-          property "the order equals the list model (least by order, then earliest ready), for total and non-total orders"
+          property "the order equals the list model (least by order, then earliest ready), for total orders and total preorders with ties"
               (Arb.fromGen (Gen.zip (Gen.oneof [ graph true; graph false ]) (Gen.elements [ 0; 1; 2 ])))
           <| fun (g, which) ->
               let order: int -> int -> int =
                   match which with
                   | 0 -> compare
                   | 1 -> fun a b -> compare b a
-                  | _ -> fun a b -> compare (a % 3) (b % 3) // not total: ties go to readiness order
+                  | _ -> fun a b -> compare (a % 3) (b % 3) // a total preorder with ties: ties go to readiness order
               match TopoSort.sort order (nodes g) (succ g), kahnModel order g with
               | Ok o, Some m -> o = m
               | Error _, None -> true
@@ -122,6 +122,28 @@ let tests =
                           && p |> List.pairwise |> List.forall (fun (u, v) -> List.contains v g.Succ.[u])
                           && a.[List.last p].EarliestFinish = s.Makespan)
                   timesHold && chain
+
+          property "critical path end and trace rules: it ends at the first activity (topological order) finishing at the makespan, and each step back is the first predecessor finishing when the current one starts"
+              (Arb.fromGen (gen {
+                  let! g = graph true
+                  let! d = Gen.arrayOfLength g.N (Gen.choose (0, 3)) // small durations: many ties
+                  return g, d }))
+          <| fun (g, d) ->
+              match TopoSort.criticalPath compare (nodes g) (succ g) (fun v -> d.[v]) with
+              | Error _ -> false
+              | Ok s when g.N = 0 -> s.CriticalPath.IsEmpty
+              | Ok s ->
+                  let acts = Array.ofList s.Activities
+                  let rank v = acts |> Array.findIndex (fun a -> a.Node = v)
+                  let ef v = acts.[rank v].EarliestFinish
+                  let es v = acts.[rank v].EarliestStart
+                  let preds v = [ for u in 0 .. g.N - 1 do if List.contains v g.Succ.[u] then yield u ]
+                  let expectedEnd = (acts |> Array.find (fun a -> a.EarliestFinish = s.Makespan)).Node
+                  let rec trace cur acc =
+                      match preds cur |> List.filter (fun p -> ef p = es cur) |> List.sortBy rank with
+                      | p :: _ -> trace p (p :: acc)
+                      | [] -> acc
+                  s.CriticalPath = trace expectedEnd [ expectedEnd ]
 
           property "critical path refuses a cyclic graph with the same cycles as sort" (Arb.fromGen (graph false))
           <| fun g ->

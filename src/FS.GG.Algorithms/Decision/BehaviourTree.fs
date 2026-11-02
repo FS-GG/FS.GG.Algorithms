@@ -166,12 +166,13 @@ module BehaviourTree =
             for k in root .. program.SubtreeEnd.[root] - 1 do
                 cur.[k] <- 0
                 if k > root then fin.[k] <- 0
-        // Finish the top frame; a finished node leaves its whole subtree idle. Invariant: a node finishes only
-        // after every descendant it ticked has finished, and a finished node is idle, so clearing the node's
-        // own cursor suffices, except for a Parallel, whose unfinished (still running) children are halted
-        // here. This keeps a tick linear in the nodes it visits (a full subtree clear on every finish would
-        // cost O(depth^2) on a deep tree). The reference interpreter in the tests clears whole subtrees and
-        // must agree.
+        // Finish the top frame, keeping the invariant "a finished node's whole subtree is idle". A node
+        // finishes only after every descendant it ticked has finished, and a finished node is already idle, so
+        // clearing the node's own cursor suffices, except for a Parallel, which halts its unfinished (still
+        // running) children by clearing their subtrees. Cost: a tick is O(nodes it visits) plus O(size of the
+        // subtrees a finishing Parallel halts). That is not quadratic, but it is not bounded by the visited
+        // nodes alone. A full subtree clear on every finish would cost O(depth^2) on a deep tree. The
+        // reference interpreter in the tests clears whole subtrees and must agree.
         let finish (status: BtStatus) =
             let top = frames.Count - 1
             let node = frames.[top]
