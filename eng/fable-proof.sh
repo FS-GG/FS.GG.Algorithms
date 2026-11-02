@@ -34,7 +34,7 @@ hexargs() { python3 -I -c 'import sys,textwrap; d=open(sys.argv[1],"rb").read().
 ( cd "$root" && dotnet tool restore >/dev/null )
 fable_version="$( (cd "$root" && dotnet fable --version) | strip | head -1)"
 echo "fable: $fable_version; node: $(node --version); dotnet: $(dotnet --version)"
-[ "$fable_version" = "5.18.0" ] || { echo "fable-proof: expected the pinned Fable 5.18.0" >&2; exit 1; }
+[ "$fable_version" = "5.26.0" ] || { echo "fable-proof: expected the pinned Fable 5.26.0" >&2; exit 1; }
 
 echo "== 0. negative control: the gate must reject code Fable cannot compile"
 negative="$work/negative-control"

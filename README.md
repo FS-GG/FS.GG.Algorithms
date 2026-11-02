@@ -48,7 +48,7 @@ docs/licence-allowlist.md        what may be ported, and from where
 
 ## Build and verify
 
-The SDK is pinned in `global.json` (10.0.403), and Fable 5.18.0 is pinned in `.config/dotnet-tools.json`.
+The SDK is pinned in `global.json` (10.0.403), and Fable 5.26.0 is pinned in `.config/dotnet-tools.json`.
 
 ```sh
 dotnet restore FS.GG.Algorithms.slnx --locked-mode
