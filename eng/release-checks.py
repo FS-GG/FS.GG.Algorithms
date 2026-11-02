@@ -8,8 +8,8 @@ eng/release-checks.test.py can exercise every route against mocked responses.
   release-checks.py fresh-publish-allowed GITHUB NUGET        exit 1 unless both are "false"
   release-checks.py validate-source STATE_JSON ORIGINAL_SHA256 SOURCE_RUN VERSION COMMIT
        the resume source must be a fresh publish run of this version and commit whose recorded archive is
-       the one being resumed: mode "publish", archiveRun == run == SOURCE_RUN, and archiveSha256 equal to the
-       ORIGINAL_SHA256 file's digest
+       the one being resumed: mode "publish", archiveRun == run == SOURCE_RUN, archiveSha256 equal to the
+       ORIGINAL_SHA256 file's digest, and githubPackagesPush "success" (a refused publish is never a source)
   release-checks.py fetch-github VERSION GITHUB_USER OUT      download the copy GitHub Packages holds to OUT
        (env GITHUB_TOKEN); HTTP 200 only, anything else FAILS
   release-checks.py compare-held HELD_NUPKG ARCHIVE_NUPKG     exit 1 unless the bytes are identical
@@ -102,6 +102,8 @@ def main(argv: list[str]) -> int:
             "version matches": state.get("version") == version,
             "commit matches": state.get("commit") == commit,
             "archiveSha256 equals the archive's recorded sha256": state.get("archiveSha256") == recorded,
+            # A refused or failed publish never pushed anything, so it cannot be the original of what a feed holds.
+            "the GitHub Packages push succeeded": state.get("githubPackagesPush") == "success",
         }
         failed = [name for name, ok in checks.items() if not ok]
         if failed:

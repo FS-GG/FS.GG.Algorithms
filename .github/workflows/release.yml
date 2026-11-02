@@ -12,8 +12,9 @@ name: release
 #   publish   holds the credentials, behind the org writer lock: verifies the archive's sha256, refuses to
 #             re-push a version a feed already holds unless resuming, pushes GitHub Packages then nuget.org,
 #             and records publish-state.json whatever happens
-#   readback  read-only: payload parity of both feeds with the archive, then a clean consumer restored from
-#             nuget.org alone, run on .NET and under Fable
+#   readback  read-only: GitHub Packages holds the archive's exact bytes (whole-file sha256), nuget.org's
+#             payload equals it (nuget.org adds a signature), then a clean consumer restored from nuget.org alone,
+#             run on .NET and under Fable
 #
 # The safety rules live in eng/release-checks.py, exercised by eng/release-checks.test.py against mocked
 # responses: a feed holds a version only on HTTP 200 and lacks it only on HTTP 404, and anything else fails
@@ -440,7 +441,13 @@ jobs:
           fetch "${nuget_base%/}/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" "$work/nugetorg.nupkg"
           fetch "${org_base%/}/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" "$work/github.nupkg" auth
           original="archive/FS.GG.Algorithms.$VERSION.nupkg"
-          [ -f "$original" ] || original="$work/github.nupkg"
+          if [ -f "$original" ]; then
+            # GitHub Packages must hold the archive's exact bytes (whole-file sha256). This proves the resume
+            # premise (a held copy is compared byte for byte) from the first release on.
+            python3 -I eng/release-checks.py compare-held "$work/github.nupkg" "$original"
+          else
+            original="$work/github.nupkg"
+          fi
           python3 -I - "$original" "$work/nugetorg.nupkg" "$work/github.nupkg" <<'PY'
           import hashlib, sys, zipfile
           def payload(path):
