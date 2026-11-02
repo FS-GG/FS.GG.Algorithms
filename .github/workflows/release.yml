@@ -6,20 +6,29 @@ name: release
 #
 # Three jobs:
 #   verify    read-only: gates (locked restore, build, property tests, Fable proof) and, for a fresh publish,
-#             the one pack, retained as an artifact with its sha256
+#             the one pack, retained as an artifact with its sha256. Only a fresh publish names its artifact
+#             fs-gg-algorithms-release-*; dry-run and login-preflight use fs-gg-algorithms-preflight-*, so they
+#             can never be a resume source. publish, resume and readback require the tagged commit to be on main.
 #   publish   holds the credentials, behind the org writer lock: verifies the archive's sha256, refuses to
 #             re-push a version a feed already holds unless resuming, pushes GitHub Packages then nuget.org,
 #             and records publish-state.json whatever happens
 #   readback  read-only: payload parity of both feeds with the archive, then a clean consumer restored from
 #             nuget.org alone, run on .NET and under Fable
 #
+# The safety rules live in eng/release-checks.py, exercised by eng/release-checks.test.py against mocked
+# responses: a feed holds a version only on HTTP 200 and lacks it only on HTTP 404, and anything else fails
+# closed; a resume source must be the original publish; a held copy must be byte-identical.
+#
 # Version: the EVALUATED <Version> of src/FS.GG.Algorithms, stable only. Modes:
 #   push tag v<version>                     publish (the tag must equal <Version>)
 #   dispatch dry-run          (any ref)     verify and pack only; no credential, no push
 #   dispatch login-preflight  (any ref)     verify, pack, and the nuget.org OIDC exchange; NO push
 #   dispatch publish          (tag ref)     publish; the dispatched ref must be refs/tags/v<version>
-#   dispatch resume           (tag ref)     re-push the ORIGINAL archive of `source_run_id` (same commit,
-#                                           this workflow), after a partial publish; nothing is re-packed
+#   dispatch resume           (tag ref)     re-push the ORIGINAL archive of `source_run_id`, after a partial
+#                                           publish. The source must be the fresh publish run of this commit and
+#                                           version (its publish-state.json names the archive's sha256), and a
+#                                           copy GitHub Packages already holds must be byte-identical to it.
+#                                           Nothing is re-packed.
 #   dispatch readback         (tag ref)     readback only, after a readback timeout; nothing is pushed
 #
 # The nuget.org Trusted Publishing policy is bound to: owner FS-GG, repository FS.GG.Algorithms, workflow
@@ -61,10 +70,11 @@ jobs:
       mode: ${{ steps.v.outputs.mode }}
       artifact: ${{ steps.v.outputs.artifact }}
     steps:
-      - name: Check out the repository
+      - name: Check out the repository (full history, for the main-ancestry check)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Install the pinned .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -101,9 +111,21 @@ jobs:
           elif [ -n "$SOURCE_RUN" ]; then
             echo "::error::source_run_id is only valid with mode resume"; exit 1
           fi
+          case "$mode" in
+            publish|resume|readback)
+              # A release commit must already be on main (merged through review), not only tagged.
+              git fetch --quiet origin main
+              git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+                || { echo "::error::$GITHUB_SHA is not on main; release only merged commits"; exit 1; } ;;
+          esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "artifact=fs-gg-algorithms-release-$version-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          # Only a fresh publish produces a release artifact; previews can never serve as a resume source.
+          if [ "$mode" = publish ] || [ "$mode" = resume ] || [ "$mode" = readback ]; then
+            echo "artifact=fs-gg-algorithms-release-$version-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "artifact=fs-gg-algorithms-preflight-$version-$GITHUB_SHA-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+          fi
           echo "release: FS.GG.Algorithms $version, mode $mode, ref $REF, commit $GITHUB_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Gates on the exact commit (ADR-0098 §4), before any credential or feed effect.
@@ -182,6 +204,11 @@ jobs:
           max-wait-minutes: 30
         timeout-minutes: 32
 
+      - name: Check out the release checks
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
       - name: Install the .NET SDK (for dotnet nuget push)
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
@@ -207,11 +234,20 @@ jobs:
             echo "run=$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Download the original archive
+      - name: Download the archive (this run's, or the resume source's original)
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: fs-gg-algorithms-release-${{ needs.verify.outputs.version }}-${{ github.sha }}
+          name: ${{ needs.verify.outputs.artifact }}
           path: archive
+          run-id: ${{ steps.src.outputs.run }}
+          github-token: ${{ github.token }}
+
+      - name: Download the resume source's publish state
+        if: env.MODE == 'resume'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: fs-gg-algorithms-publish-state-${{ needs.verify.outputs.version }}-${{ steps.src.outputs.run }}-*
+          path: source-state
           run-id: ${{ steps.src.outputs.run }}
           github-token: ${{ github.token }}
 
@@ -225,27 +261,49 @@ jobs:
           echo "path=$PWD/FS.GG.Algorithms.$VERSION.nupkg" >> "$GITHUB_OUTPUT"
           echo "sha256=$(cut -d' ' -f1 ORIGINAL_SHA256)" >> "$GITHUB_OUTPUT"
 
+      # A resume source must be the ORIGINAL publish of this archive: a fresh `publish` run of this version
+      # and commit, whose own publish-state.json records exactly this archive's sha256.
+      - name: Validate the resume source
+        if: env.MODE == 'resume'
+        shell: bash
+        env:
+          SOURCE: ${{ steps.src.outputs.run }}
+        run: |
+          set -euo pipefail
+          found=0
+          for state in $(find source-state -name publish-state.json | sort); do
+            if python3 -I eng/release-checks.py validate-source "$state" archive/ORIGINAL_SHA256 "$SOURCE" "$VERSION" "$GITHUB_SHA"; then
+              found=1
+              break
+            fi
+          done
+          [ "$found" = 1 ] || { echo "::error::run $SOURCE is not the original publish of this archive"; exit 1; }
+
       # A fresh publish refuses a version that a feed already holds: re-packing is not byte-identical, so the
       # only way to finish a partial publish is `resume` with the original archive.
+      # A feed holds the version only on HTTP 200 and lacks it only on HTTP 404; any other answer fails closed.
+      # A fresh publish refuses a version a feed already holds (re-packing is not byte-identical). A resume
+      # requires a copy GitHub Packages already holds to be the archive's exact bytes.
       - name: Feed state before any push
         id: before
         if: env.MODE != 'login-preflight'
         shell: bash
         env:
-          PACKAGE_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          v="${VERSION,,}"
-          on_nuget=false; on_github=false
-          curl -fsS -o /dev/null "https://api.nuget.org/v3-flatcontainer/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" && on_nuget=true || true
-          curl -fsS -o /dev/null -u "${{ github.actor }}:$PACKAGE_TOKEN" "https://nuget.pkg.github.com/FS-GG/download/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" && on_github=true || true
-          echo "before: github=$on_github nuget.org=$on_nuget"
-          if [ "$MODE" = publish ] && { $on_nuget || $on_github; }; then
-            echo "::error::$VERSION is already on a feed (github=$on_github nuget.org=$on_nuget). Never re-pack: dispatch mode resume with source_run_id of the run whose archive was pushed."
-            exit 1
+          state="$(python3 -I eng/release-checks.py feed-state "$VERSION" "${{ github.actor }}")"
+          echo "before: $state"
+          github="$(sed -E 's/.*github=([a-z]+).*/\1/' <<<"$state")"
+          nuget="$(sed -E 's/.*nuget=([a-z]+).*/\1/' <<<"$state")"
+          if [ "$MODE" = publish ]; then
+            python3 -I eng/release-checks.py fresh-publish-allowed "$github" "$nuget"
+          elif [ "$github" = true ]; then
+            python3 -I eng/release-checks.py fetch-github "$VERSION" "${{ github.actor }}" held.nupkg
+            python3 -I eng/release-checks.py compare-held held.nupkg "${{ steps.archive.outputs.path }}"
           fi
-          echo "github=$on_github" >> "$GITHUB_OUTPUT"
-          echo "nuget=$on_nuget" >> "$GITHUB_OUTPUT"
+          echo "github=$github" >> "$GITHUB_OUTPUT"
+          echo "nuget=$nuget" >> "$GITHUB_OUTPUT"
 
       - name: NuGet login (OIDC to a short-lived nuget.org key)
         id: login
@@ -319,6 +377,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      actions: read
     env:
       VERSION: ${{ needs.verify.outputs.version }}
     steps:
@@ -339,12 +398,14 @@ jobs:
 
       # Readback compares both feeds with the bytes nuget.org now serves AND with the original archive when it is
       # available in this run (publish); a standalone readback compares the two feeds with each other.
-      - name: Download this run's original archive (publish only)
-        if: needs.verify.outputs.mode == 'publish'
+      - name: Download the original archive (publish, or the resume source's)
+        if: needs.verify.outputs.mode == 'publish' || needs.verify.outputs.mode == 'resume'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: fs-gg-algorithms-release-${{ needs.verify.outputs.version }}-${{ github.sha }}
+          name: ${{ needs.verify.outputs.artifact }}
           path: archive
+          run-id: ${{ needs.verify.outputs.mode == 'resume' && inputs.source_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Read back both feeds and run a clean nuget.org consumer (.NET and Fable)
         shell: bash

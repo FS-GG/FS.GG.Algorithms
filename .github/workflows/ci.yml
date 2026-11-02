@@ -49,8 +49,11 @@ jobs:
         run: |
           set -euo pipefail
           for f in eng/*.sh bench/*.sh; do bash -n "$f"; done
-          python3 -I -m py_compile scripts/lockstep-fixtures.py bench/assemble.py
+          python3 -I -m py_compile scripts/lockstep-fixtures.py bench/assemble.py eng/release-checks.py
           node --check bench/fable/run.mjs
+
+      - name: Release safety checks (mocked feeds and runs)
+        run: python3 -I eng/release-checks.test.py
 
   fable-proof:
     name: fable-proof
