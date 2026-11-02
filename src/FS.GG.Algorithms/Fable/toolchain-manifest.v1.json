@@ -5,7 +5,7 @@
   "dotnetSdk": "10.0.403",
   "targetFramework": "net10.0",
   "fsharpCore": "10.1.401",
-  "fableCompiler": "5.18.0",
+  "fableCompiler": "5.26.0",
   "fablePackageSdk": "1.4.1",
   "nodeMajor": 26,
   "javascriptModuleTarget": "esmodule",

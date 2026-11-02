@@ -6,8 +6,8 @@
     <PackageVersion Include="Fable.Package.SDK" Version="1.4.1" />
   </ItemGroup>
   <ItemGroup Label="Tests (never shipped)">
-    <PackageVersion Include="Expecto" Version="11.1.0" />
-    <PackageVersion Include="FsCheck" Version="3.4.0" />
+    <PackageVersion Include="Expecto" Version="11.1.1" />
+    <PackageVersion Include="FsCheck" Version="3.6.0" />
   </ItemGroup>
   <ItemGroup Label="Bench (never shipped, ADR-0098 §4)">
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
