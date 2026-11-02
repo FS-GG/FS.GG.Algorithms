@@ -96,10 +96,10 @@
     }
   ],
   "inputs": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/cases.bin",
-  "inputsSha256": "9465055a01ff6a371a1cedfcde3557de07079bc6c42e1080b5f16a832c725945",
+  "inputsSha256": "4a645baa714cdd8febafabd05045c914474a5acc7aa30bf79076b085e2ab9ae1",
   "inputsGenerator": "scripts/lockstep-fixtures.py generate (fixed constants and a 32-bit LCG; no clock, network or host randomness)",
   "oracle": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/expected.bin",
-  "oracleSha256": "4cbd09f491b5216c86220b2dd6bbc7c01674ac0ebe4af2c513ec150b4fdead27",
+  "oracleSha256": "cfab032658ade78179fba84b7a085e3dff550c29861fa453c0680fcb1730b0d9",
   "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; Kahn on Python's heapq with CPM by definition for 11; a recursive Python behaviour-tree interpreter for 12; exact neighbour lists from the rules, Dijkstra on heapq, path validity and settle bounds for 13; a brute-force scan by (distance^2, x, y, index) for 14; optimal cost, path validity and settle order for 4",
   "outcomeTags": {
     "0": "operation completed normally",

@@ -581,11 +581,30 @@ def kd_cases():
     return cases
 
 
+def door_cost_cases():
+    """Cost pairs where octile is NOT a valid bound (review of FS.GG.Algorithms#6): diagonal < orthogonal, so
+    zigzags beat straight lines, and diagonal > 2 x orthogonal, so diagonals never pay."""
+    open4 = [1] * 16
+    cases = [
+        door_case(13014, 1, 4, open4, [], [], True, 10, 1, (0, 0, 0), (0, 3, 1), True, I32_MAX),   # the counterexample
+        door_case(13015, 1, 4, open4, [], [], True, 10, 1, (0, 0, 0), (0, 3, 0), True, I32_MAX),   # odd parity
+        door_case(13016, 1, 4, open4, [], [], True, 1, 5, (0, 0, 0), (0, 3, 3), True, I32_MAX),    # diagonals useless
+    ]
+    for k, seed in enumerate([151, 152, 153]):
+        rng = Lcg(seed)
+        side = 5 + rng.below(3)
+        walk = [1 if rng.below(7) else 0 for _ in range(side * side)]
+        walk[0] = walk[side * side - 1] = 1
+        ortho, diag = [(10, 1), (7, 3), (2, 9)][k]
+        cases.append(door_case(13017 + k, 1, side, walk, [], [], True, ortho, diag, (0, 0, 0), (0, side - 1, side - 1), True, I32_MAX))
+    return cases
+
+
 def all_cases():
     # Order is append-only: PR 1's cases (operations 1-5 and the operation 10 sweep) stay a byte-identical prefix.
     return (heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases()
             + sweep_cases() + scc_cases() + union_find_cases() + percentile_cases() + arbitration_cases()
-            + topo_cases() + bt_cases() + door_cases() + kd_cases())
+            + topo_cases() + bt_cases() + door_cases() + kd_cases() + door_cost_cases())
 
 
 def encode_cases(cases) -> bytes:

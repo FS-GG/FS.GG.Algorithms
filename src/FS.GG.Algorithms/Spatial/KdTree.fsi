@@ -57,5 +57,6 @@ module KdTree =
     /// Every point with minX <= X <= maxX and minY <= Y <= maxY, ordered by (X, Y, Index).
     val inRectangle: minX: int -> minY: int -> maxX: int -> maxY: int -> tree: KdTree<'T> -> KdPoint<'T> list
 
-    /// The squared Euclidean distance between two points (exact in `int32` within the coordinate range).
+    /// The squared Euclidean distance between two points, exact in `int32`. Raises `System.ArgumentException`
+    /// for a coordinate outside -16383..16383, where the result could overflow.
     val distanceSquared: x1: int -> y1: int -> x2: int -> y2: int -> int

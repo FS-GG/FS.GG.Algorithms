@@ -74,6 +74,7 @@ let tests =
               Expect.isTrue (raises<System.ArgumentException> (fun () -> KdTree.nearest (lo - 1) 0 t |> ignore)) "query range"
               Expect.isTrue (raises<System.ArgumentException> (fun () -> KdTree.withinRadius 46341 0 0 t |> ignore)) "radius"
               Expect.isTrue (raises<System.ArgumentException> (fun () -> KdTree.kNearest -1 0 0 t |> ignore)) "k"
+              Expect.isTrue (raises<System.ArgumentException> (fun () -> KdTree.distanceSquared (hi + 1) 0 0 0 |> ignore)) "distanceSquared range"
               Expect.equal (KdTree.nearest 0 0 (KdTree.build ([]: (int * int * int) list))) None "empty"
 
           testCase "Stack safety: 10^5 collinear points and 10^5 duplicates"

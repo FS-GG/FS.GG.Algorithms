@@ -75,7 +75,7 @@
     {
       "name": "Search.Grid.DoorGrid: neighbours, distance, findPath (thin walls, doors, planes and stairs, no corner cutting)",
       "grade": "LockstepExact",
-      "evidence": "fixture-schema.v1 operation 13; cases 13001-13013; FsCheck: neighbours equal an independently written adjacency, A* and Dijkstra cost equal an oracle Dijkstra, the paths use oracle moves, the heuristic is a lower bound; a 10^5-tile corridor under Node's default stack"
+      "evidence": "fixture-schema.v1 operation 13; cases 13001-13019 (13014-13019: diagonal < orthogonal and diagonal > 2 x orthogonal); FsCheck over arbitrary positive cost pairs: neighbours equal an independently written adjacency, A* and Dijkstra cost equal an oracle Dijkstra (also on open grids), the heuristic is consistent for every move and exact on open grids; a 10^5-tile corridor under Node's default stack"
     },
     {
       "name": "Spatial.KdTree: build, nearest, kNearest, withinRadius, inRectangle, distanceSquared (int coordinates -16383..16383)",

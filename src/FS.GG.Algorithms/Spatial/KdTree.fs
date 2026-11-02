@@ -27,7 +27,16 @@ module KdTree =
     [<Literal>]
     let MaxCoordinate = 16383
 
+    let private inRange (v: int) = v >= MinCoordinate && v <= MaxCoordinate
+
+    let private squared (x1: int) (y1: int) (x2: int) (y2: int) =
+        let dx = x1 - x2
+        let dy = y1 - y2
+        dx * dx + dy * dy
+
     let distanceSquared (x1: int) (y1: int) (x2: int) (y2: int) =
+        if not (inRange x1 && inRange y1 && inRange x2 && inRange y2) then
+            invalidArg "x1" "KdTree.distanceSquared: a coordinate is outside -16383..16383"
         let dx = x1 - x2
         let dy = y1 - y2
         dx * dx + dy * dy
@@ -104,7 +113,7 @@ module KdTree =
         let mutable best: KdPoint<'T> option = None
         let mutable bestD = 0
         walk tree x y (fun bound -> best.IsNone || bound <= bestD) (fun p ->
-            let d = distanceSquared x y p.X p.Y
+            let d = squared x y p.X p.Y
             match best with
             | Some b when not (before d p bestD b) -> ()
             | _ ->
@@ -119,7 +128,7 @@ module KdTree =
         let found = ResizeArray<struct (int * KdPoint<'T>)>()
         if k > 0 then
             walk tree x y (fun bound -> found.Count < k || bound <= (let struct (d, _) = found.[found.Count - 1] in d)) (fun p ->
-                let d = distanceSquared x y p.X p.Y
+                let d = squared x y p.X p.Y
                 let mutable i = found.Count
                 while i > 0 && (let struct (d2, q) = found.[i - 1] in before d p d2 q) do
                     i <- i - 1
@@ -134,7 +143,7 @@ module KdTree =
         let r2 = radius * radius
         let found = ResizeArray<struct (int * KdPoint<'T>)>()
         walk tree x y (fun bound -> bound <= r2) (fun p ->
-            let d = distanceSquared x y p.X p.Y
+            let d = squared x y p.X p.Y
             if d <= r2 then found.Add(struct (d, p)))
         found
         |> Seq.sortWith (fun (struct (d1, a)) (struct (d2, b)) -> if before d1 a d2 b then -1 elif before d2 b d1 a then 1 else 0)

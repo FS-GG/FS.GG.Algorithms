@@ -59,7 +59,12 @@ let private mapCase =
                     return (p, x, y), (q, max 0 (min (side - 1) (x + dx)), y), extra
                 })
         let! diagonal = Gen.elements [ true; false ]
-        let! costs = Gen.elements [ 10, 14; 1, 1; 3, 5 ]
+        // Arbitrary positive cost pairs, including diagonal < orthogonal (zigzags beat straight lines) and
+        // diagonal > 2 x orthogonal (diagonals are useless), plus the classic pairs.
+        let! costs =
+            Gen.frequency
+                [ 1, Gen.elements [ 10, 14; 1, 1; 10, 1; 1, 3 ]
+                  3, Gen.zip (Gen.choose (1, 20)) (Gen.choose (1, 45)) ]
         let! sp = Gen.choose (0, planes - 1)
         let! sx = Gen.choose (0, side - 1)
         let! sy = Gen.choose (0, side - 1)
@@ -107,6 +112,24 @@ let private oracleMoves (m: MapCase) (c: int * int * int) =
                   if walkable m n && walkable m sx && walkable m sy && isOpen c sx && isOpen c sy && isOpen sx n && isOpen sy n then
                       yield n, m.Diag ]
     steps @ (m.Stairs |> List.filter (fun (a, _, _) -> a = c) |> List.map (fun (_, b, k) -> b, k))
+
+/// Dijkstra by a plain list scan over the explicit state space (the oracle): every reachable tile's distance.
+let private oracleAll (m: MapCase) =
+    let dist = System.Collections.Generic.Dictionary<int * int * int, int>()
+    let settled = System.Collections.Generic.HashSet<int * int * int>()
+    dist.[m.Start] <- 0
+    let mutable go = true
+    while go do
+        let open' = dist |> Seq.filter (fun kv -> not (settled.Contains kv.Key)) |> Seq.toList
+        if open'.IsEmpty then go <- false
+        else
+            let kv = open' |> List.minBy (fun kv -> kv.Value)
+            settled.Add kv.Key |> ignore
+            for (n, c) in oracleMoves m kv.Key do
+                match dist.TryGetValue n with
+                | true, d when d <= kv.Value + c -> ()
+                | _ -> dist.[n] <- kv.Value + c
+    dist
 
 /// Dijkstra by a plain list scan over the explicit state space (the oracle).
 let private oracleDistance (m: MapCase) =
@@ -162,6 +185,43 @@ let tests =
               match oracleDistance m with
               | Some d -> DoorGrid.distance g (toTile m.Start) (toTile m.Goal) <= d
               | None -> true
+
+          property "A* equals Dijkstra and the oracle on open grids with arbitrary cost pairs (the review's 490/1500 class)" mapCase
+          <| fun m0 ->
+              let m = { m0 with Planes = 1; Open = Array.create (m0.Side * m0.Side) true; Edges = Map.empty; Stairs = []; Start = (0, 0, 0); Goal = (0, m0.Side - 1, (m0.Side - 1) / 2) }
+              let g = grid m
+              let cost h = match (DoorGrid.findPath g h System.Int32.MaxValue (toTile m.Goal) (toTile m.Start)).Outcome with | Found(_, c) -> Some c | _ -> None
+              cost true = oracleDistance m && cost false = oracleDistance m
+
+          property "the heuristic is consistent for every cost pair: h(goal) = 0 and h(u) <= c(u, v) + h(v) for every move" mapCase
+          <| fun m ->
+              let g = grid m
+              let h c = DoorGrid.distance g (toTile c) (toTile m.Goal)
+              h m.Goal = 0
+              && ([ for p in 0 .. m.Planes - 1 do for y in 0 .. m.Side - 1 do for x in 0 .. m.Side - 1 do yield p, x, y ]
+                  |> List.filter (walkable m)
+                  |> List.forall (fun u -> oracleMoves m u |> List.forall (fun (v, c) -> h u <= c + h v)))
+
+          property "the heuristic is tight: on an open single-plane grid it equals the oracle's distance to every tile" mapCase
+          <| fun m0 ->
+              // Same costs and size, but no walls, doors, closed cells or stairs.
+              let m = { m0 with Planes = 1; Open = Array.create (m0.Side * m0.Side) true; Edges = Map.empty; Stairs = []; Start = (0, 0, 0); Goal = (0, 0, 0) }
+              let g = grid m
+              let all = oracleAll m
+              all |> Seq.forall (fun kv -> DoorGrid.distance g (toTile m.Start) (toTile kv.Key) = kv.Value)
+
+          testCase "regression: cheap diagonals (orthogonal 10, diagonal 1) keep A* optimal (review of FS.GG.Algorithms#6)"
+          <| fun () ->
+              let m = { Planes = 1; Side = 4; Open = Array.create 16 true; Edges = Map.empty; Stairs = []; Diagonal = true; Ortho = 10; Diag = 1; Start = 0, 0, 0; Goal = 0, 3, 1 }
+              let costOf h = match (DoorGrid.findPath (grid m) h 1000000 (toTile m.Goal) (toTile m.Start)).Outcome with | Found(_, c) -> c | o -> failwithf "%A" o
+              Expect.equal (costOf true, costOf false) (3, 3) "A* equals Dijkstra"
+              Expect.equal (DoorGrid.distance (grid m) (toTile (0, 0, 0)) (toTile (0, 3, 1))) 3 "a zigzag of three diagonals"
+              Expect.equal (DoorGrid.distance (grid m) (toTile (0, 0, 0)) (toTile (0, 3, 0))) 12 "odd parity: two diagonals and one straight step"
+
+          testCase "the heuristic refuses overflow instead of wrapping"
+          <| fun () ->
+              let m = { Planes = 1; Side = 1; Open = [| true |]; Edges = Map.empty; Stairs = []; Diagonal = false; Ortho = 1000000; Diag = 1; Start = 0, 0, 0; Goal = 0, 0, 0 }
+              Expect.isTrue (raises<System.OverflowException> (fun () -> DoorGrid.distance (grid m) { Plane = 0; X = 0; Y = 0 } { Plane = 0; X = 5000; Y = 0 } |> ignore)) "overflow"
 
           testCase "a door costs its extra; a diagonal never passes a door or a wall corner"
           <| fun () ->

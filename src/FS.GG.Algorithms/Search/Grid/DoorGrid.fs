@@ -70,14 +70,36 @@ module DoorGrid =
                 n, c)
         orthogonal @ diagonal @ transitions
 
+    let private overflow () =
+        raise (System.OverflowException "DoorGrid.distance: the distance exceeds System.Int32.MaxValue")
+
+    // a, b >= 0
+    let private addChecked (a: int) (b: int) = if b > System.Int32.MaxValue - a then overflow () else a + b
+    let private mulChecked (a: int) (b: int) = if a <> 0 && b > System.Int32.MaxValue / a then overflow () else a * b
+
     let distance (grid: DoorGrid) (a: Tile) (b: Tile) =
-        let dx = abs (a.X - b.X)
-        let dy = abs (a.Y - b.Y)
-        if grid.Diagonal then
-            let d = min grid.DiagonalCost (2 * grid.OrthogonalCost)
-            d * min dx dy + grid.OrthogonalCost * (max dx dy - min dx dy)
+        check grid
+        let dx0 = abs (a.X - b.X)
+        let dy0 = abs (a.Y - b.Y)
+        let dx = max dx0 dy0 // the longer axis
+        let dy = min dx0 dy0
+        let o = grid.OrthogonalCost
+        let d = grid.DiagonalCost
+        // The exact cheapest cost on the OPEN lattice (no walls, doors or transitions) with these step costs.
+        // Walls only remove moves and doors only add cost, so it never overestimates; as a shortest-path
+        // metric of a graph whose every move the real grid also offers at no lower cost, it is consistent.
+        if not grid.Diagonal || d >= 2 * o then
+            mulChecked o (addChecked dx dy)
+        elif d >= o then
+            // Octile: dy diagonal steps, then dx - dy straight steps.
+            addChecked (mulChecked d dy) (mulChecked o (dx - dy))
+        elif (dx - dy) % 2 = 0 then
+            // Diagonals are cheaper than straight steps: a zigzag of dx diagonals reaches any target whose
+            // dx - dy is even (every diagonal changes the parity of x + y by 0 or 2).
+            mulChecked d dx
         else
-            grid.OrthogonalCost * (dx + dy)
+            // An odd dx - dy needs at least one straight step; at least dx steps are needed in all.
+            addChecked (mulChecked d (dx - 1)) o
 
     let private tieBreak (a: Tile) (b: Tile) =
         if a.Plane <> b.Plane then compare a.Plane b.Plane
