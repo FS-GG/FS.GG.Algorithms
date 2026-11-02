@@ -52,15 +52,16 @@ jobs:
       - name: Negative control (a failing property fails the run within 2 minutes)
         shell: bash
         run: |
-          set -uo pipefail
+          set -u
           control=8
           bound=120
           log="$RUNNER_TEMP/negative-control.log"
           start=$SECONDS
+          # The runner's shell has -e: the non-zero exit being tested must not end the step.
+          code=0
           FSGG_ALGO_NEGATIVE_CONTROL=$control timeout --kill-after=10 "$bound" \
             dotnet tests/FS.GG.Algorithms.Tests/bin/Release/net10.0/FS.GG.Algorithms.Tests.dll --no-spinner --colours 0 \
-            > "$log" 2>&1
-          code=$?
+            > "$log" 2>&1 || code=$?
           elapsed=$((SECONDS - start))
           tail -n 4 "$log"
           echo "negative control: exit $code after ${elapsed}s (bound ${bound}s)"
