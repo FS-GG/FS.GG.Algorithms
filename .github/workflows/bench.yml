@@ -1,0 +1,60 @@
+name: bench
+
+# The full two-runtime bench (BenchmarkDotNet on .NET, the Fable output on Node) on a GitHub-hosted runner,
+# dispatched by hand. Root's ruling for FS-GG/.github#5224: fdev is not quiet while review lanes run, so the
+# baseline is recorded on the hosted runner class instead. Run it three times on clean main, then combine the
+# three uploaded runs with bench/combine.py into bench/baselines/github-hosted-<image>-<date>-<version>.json
+# (per-kernel median and run-to-run spread). Hosted-runner numbers are for regression comparison under the same
+# runner class, not absolute performance. Read-only: no credential, no write permission.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  bench:
+    name: bench (hosted, full)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.repository == 'FS-GG/FS.GG.Algorithms'
+    steps:
+      - name: Only clean main is recorded
+        shell: bash
+        run: |
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::bench records main only, not $GITHUB_REF"; exit 1; }
+
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Install Node (the toolchain manifest's major)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "26"
+
+      - name: Full bench on .NET and Node
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: bench/run.sh --hosted
+
+      - name: Retain this run
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bench-hosted-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/fsgg-algorithms-bench/hosted-run.json
+            ${{ runner.temp }}/fsgg-algorithms-bench/bdn/results/
+          if-no-files-found: error
+          retention-days: 90

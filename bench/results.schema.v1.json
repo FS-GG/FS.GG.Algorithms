@@ -2,44 +2,106 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/FS-GG/FS.GG.Algorithms/blob/main/bench/results.schema.v1.json",
   "title": "FS.GG.Algorithms bench baseline v1",
-  "description": "One committed baseline: bench/baselines/<host>-<yyyy-mm-dd>-<package-version>.json (ADR-0098 §4.3). Both runtimes write the same run shape, distinguished by `runtime`. FS.GG.Algorithms owns this schema; FS.GG.Game reuses it by reference. Work counts are deterministic and may gate regressions; timings are evidence, never gates.",
+  "description": "One committed baseline: bench/baselines/<host>-<yyyy-mm-dd>-<package-version>.json (ADR-0098 \u00a74.3). Both runtimes write the same run shape, distinguished by `runtime`. FS.GG.Algorithms owns this schema; FS.GG.Game reuses it by reference. Work counts are deterministic and may gate regressions; timings are evidence, never gates. A baseline is recorded either on a quiet fdev host (admission by the quiet-host probe) or on a GitHub-hosted runner class (admission.probe names it; bench/combine.py merges several runs and records each result's run-to-run `spread`). Hosted-runner numbers compare regressions under the same runner class; they are not absolute performance.",
   "type": "object",
-  "required": ["schema", "package", "source", "host", "recordedAt", "admission", "runs"],
+  "required": [
+    "schema",
+    "package",
+    "source",
+    "host",
+    "recordedAt",
+    "admission",
+    "runs"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schema": { "const": "fsgg.algorithms.bench-results/v1" },
+    "schema": {
+      "const": "fsgg.algorithms.bench-results/v1"
+    },
     "package": {
       "type": "object",
-      "required": ["id", "version"],
+      "required": [
+        "id",
+        "version"
+      ],
       "additionalProperties": false,
-      "properties": { "id": { "type": "string" }, "version": { "type": "string" } }
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
     },
     "source": {
       "type": "object",
-      "required": ["repository", "commit", "dirty"],
+      "required": [
+        "repository",
+        "commit",
+        "dirty"
+      ],
       "additionalProperties": false,
       "properties": {
-        "repository": { "type": "string" },
-        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-        "dirty": { "type": "boolean" }
+        "repository": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "dirty": {
+          "type": "boolean"
+        }
       }
     },
     "host": {
       "type": "object",
-      "required": ["name", "os", "nproc"],
+      "required": [
+        "name",
+        "os",
+        "nproc"
+      ],
       "additionalProperties": false,
-      "properties": { "name": { "type": "string" }, "os": { "type": "string" }, "cpu": { "type": "string" }, "nproc": { "type": "integer", "minimum": 1 } }
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "cpu": {
+          "type": "string"
+        },
+        "nproc": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     },
-    "recordedAt": { "type": "string", "format": "date-time" },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
     "admission": {
       "type": "object",
       "description": "The quiet-host probe that admitted this invocation: fdev-lane-capacity.py --max-load-per-core 0.25 (FS.GG.Game#780). A held probe waits; it is never overridden.",
-      "required": ["probe", "verdict", "observation"],
+      "required": [
+        "probe",
+        "verdict",
+        "observation"
+      ],
       "additionalProperties": false,
       "properties": {
-        "probe": { "type": "string" },
-        "verdict": { "const": "admit" },
-        "observation": { "type": "object" }
+        "probe": {
+          "type": "string"
+        },
+        "verdict": {
+          "const": "admit"
+        },
+        "observation": {
+          "type": "object"
+        }
       }
     },
     "runs": {
@@ -47,32 +109,111 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["runtime", "runtimeVersion", "protocol", "results"],
+        "required": [
+          "runtime",
+          "runtimeVersion",
+          "protocol",
+          "results"
+        ],
         "additionalProperties": false,
         "properties": {
-          "runtime": { "enum": ["dotnet", "node"] },
-          "runtimeVersion": { "type": "string" },
-          "protocol": { "type": "object" },
+          "runtime": {
+            "enum": [
+              "dotnet",
+              "node"
+            ]
+          },
+          "runtimeVersion": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "object"
+          },
           "results": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["kernel", "size", "workCount", "medianNs", "p95Ns"],
+              "required": [
+                "kernel",
+                "size",
+                "workCount",
+                "medianNs",
+                "p95Ns"
+              ],
               "additionalProperties": false,
               "properties": {
-                "kernel": { "type": "string", "description": "<entry id>/<workload>, for example graph/best-first-search/astar-grid" },
-                "size": { "type": "integer", "minimum": 1 },
-                "workCount": { "type": "integer", "minimum": 0 },
-                "medianNs": { "type": "number", "minimum": 0 },
-                "p95Ns": { "type": "number", "minimum": 0 },
-                "meanNs": { "type": "number", "minimum": 0 },
-                "allocatedBytesPerOp": { "type": "number", "minimum": 0 },
-                "samples": { "type": "integer", "minimum": 1 }
+                "kernel": {
+                  "type": "string",
+                  "description": "<entry id>/<workload>, for example graph/best-first-search/astar-grid"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "workCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "medianNs": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "p95Ns": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "meanNs": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "allocatedBytesPerOp": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "samples": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "spread": {
+                  "type": "object",
+                  "description": "Optional: run-to-run spread of the per-run medians when several runs are combined.",
+                  "required": [
+                    "runs",
+                    "minMedianNs",
+                    "maxMedianNs",
+                    "cv"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "runs": {
+                      "type": "integer",
+                      "minimum": 2
+                    },
+                    "minMedianNs": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "maxMedianNs": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "cv": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Coefficient of variation (population standard deviation / mean) of the per-run medians."
+                    }
+                  }
+                }
               }
             }
           }
         }
       }
+    },
+    "toolchain": {
+      "type": "object",
+      "description": "Optional: the runner image and toolchain of a combined hosted baseline.",
+      "additionalProperties": true
     }
   }
 }

@@ -83,6 +83,14 @@ probe waits and is never overridden, and a recording run refuses a dirty tree. `
 harness without recording anything.
 Work counts may gate regressions; timings never do.
 
+Because fdev is rarely quiet while review lanes run, the baseline for FS-GG/.github#5224 is recorded on a
+**GitHub-hosted runner**. The `bench` workflow (`workflow_dispatch`, `ubuntu-latest`) runs the full bench with
+`bench/run.sh --hosted`. Three such runs on clean `main` are combined by `bench/combine.py` into one baseline,
+with the per-kernel median across runs and the run-to-run spread (min, max and CV). The baseline also records
+the runner image, the .NET SDK, Node and Fable. **Hosted-runner numbers are for regression comparison under the
+same runner class, not absolute performance.** A quiet-fdev baseline remains an optional refinement
+(FS.GG.Algorithms#1).
+
 ## Release
 
 `.github/workflows/release.yml` publishes the library. It pushes the byte-identical `.nupkg` to the org GitHub

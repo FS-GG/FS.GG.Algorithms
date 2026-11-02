@@ -16,6 +16,10 @@ import platform
 import sys
 
 
+HOSTED_PROBE = ("github-hosted runner (no quiet-host probe): numbers are for regression comparison under the same "
+                "runner class, not absolute performance")
+
+
 def fail(msg):
     print(f"assemble: {msg}", file=sys.stderr)
     sys.exit(1)
@@ -68,7 +72,11 @@ def main():
         "source": {"repository": "FS-GG/FS.GG.Algorithms", "commit": a.commit, "dirty": a.dirty},
         "host": {"name": a.host, "os": platform.platform(), "cpu": env.get("ProcessorName", ""), "nproc": os.cpu_count()},
         "recordedAt": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
-        "admission": {"probe": "fdev-lane-capacity.py --max-load-per-core 0.25", "verdict": "admit", "observation": admission},
+        "admission": {
+            "probe": (HOSTED_PROBE if admission.get("hosted") else "fdev-lane-capacity.py --max-load-per-core 0.25"),
+            "verdict": "admit",
+            "observation": admission,
+        },
         "runs": [
             {
                 "runtime": "dotnet",
