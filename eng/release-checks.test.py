@@ -79,7 +79,8 @@ with tempfile.TemporaryDirectory() as d:
     import hashlib
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     (d / "ORIGINAL_SHA256").write_text(f"{digest}  FS.GG.Algorithms.0.1.0.nupkg\n")
-    good = {"mode": "publish", "run": "77", "archiveRun": "77", "version": "0.1.0", "commit": "c0ffee", "archiveSha256": digest}
+    good = {"mode": "publish", "run": "77", "archiveRun": "77", "version": "0.1.0", "commit": "c0ffee", "archiveSha256": digest,
+            "githubPackagesPush": "success", "nugetOrgPush": "failure"}
 
     def source(state, run_id="77"):
         (d / "state.json").write_text(json.dumps(state))
@@ -93,6 +94,10 @@ with tempfile.TemporaryDirectory() as d:
     expect("another commit is refused", source({**good, "commit": "beef"}) == 1)
     expect("another version is refused", source({**good, "version": "0.1.1"}) == 1)
     expect("a different archive (re-pack) is refused", source({**good, "archiveSha256": "0" * 64}) == 1)
+    for outcome in ("failure", "skipped", "cancelled", ""):
+        expect(f"a publish whose GitHub Packages push was {outcome or 'missing'} is refused as a source",
+               source({**good, "githubPackagesPush": outcome}) == 1)
+    expect("a state without the push field is refused", source({k: v for k, v in good.items() if k != "githubPackagesPush"}) == 1)
     (d / "missing.json").unlink(missing_ok=True)
     expect("a missing publish-state is refused",
            run(["validate-source", str(d / "missing.json"), str(d / "ORIGINAL_SHA256"), "77", "0.1.0", "c0ffee"])[0] == 1)
