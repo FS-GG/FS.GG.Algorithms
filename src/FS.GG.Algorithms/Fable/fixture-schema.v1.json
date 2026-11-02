@@ -81,14 +81,26 @@
       "operation": "BehaviourTree.compile and tickTraced over several ticks",
       "input": "the tree in preorder (u8 kind: 0 leaf i32 id | 1 sequence, 2 selector: u32 n, children | 3 parallel: i32 successAt, i32 failureAt, u32 n, children | 4 invert, 5 forceSuccess, 6 forceFailure: child | 7 repeat, 8 retry: i32 count, child), u32 leafCount and per leaf list<u8> status script (0 success, 1 failure, 2 running) cycled by that leaf's call count, u32 ticks",
       "payload": "u32 ticks, then per tick u8 status, list<i32> leaf trace (preorder), leafCount i32 call counts (the blackboard), list<i32> cursors, list<i32> finished"
+    },
+    {
+      "id": 13,
+      "operation": "DoorGrid.neighbours and DoorGrid.findPath",
+      "input": "u8 planes, u8 side, planes*side*side u8 walkable; u32 edges (i32 plane, x, y, u8 direction 0 east 1 south, u8 kind 0 open 1 blocked 2 door, i32 extra); u32 stairs (i32 p, x, y, q, x2, y2, cost); u8 diagonal; i32 orthogonalCost, diagonalCost; i32 start p, x, y; i32 goal p, x, y; u8 heuristic; i32 maxExpanded",
+      "payload": "per walkable tile in (plane, y, x) order list<i32 p, x, y, cost> neighbours; then u8 outcome (0 found: i32 cost, list<i32 p, x, y> | 1 unreachable | 2 budget), u32 expanded"
+    },
+    {
+      "id": 14,
+      "operation": "KdTree.build, nearest, kNearest, withinRadius, inRectangle",
+      "input": "list<i32 x, i32 y> points (value = index); u32 queries, each u8 kind (0 nearest x y | 1 kNearest k x y | 2 withinRadius r x y | 3 inRectangle minX minY maxX maxY) and four i32",
+      "payload": "per query list<i32 x, y, index>"
     }
   ],
   "inputs": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/cases.bin",
-  "inputsSha256": "11647d0712ba24f74bce7a8345f652d0540a7fd4b300e9835d16f5db38dbf954",
+  "inputsSha256": "9465055a01ff6a371a1cedfcde3557de07079bc6c42e1080b5f16a832c725945",
   "inputsGenerator": "scripts/lockstep-fixtures.py generate (fixed constants and a 32-bit LCG; no clock, network or host randomness)",
   "oracle": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/expected.bin",
-  "oracleSha256": "b0c0e2fb52029ef3a36bb4e35472da3a2c47ae29634816900c003ab89ed94d60",
-  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; Kahn on Python's heapq with CPM by definition for 11; a recursive Python behaviour-tree interpreter for 12; optimal cost, path validity and settle order for 4",
+  "oracleSha256": "4cbd09f491b5216c86220b2dd6bbc7c01674ac0ebe4af2c513ec150b4fdead27",
+  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; Kahn on Python's heapq with CPM by definition for 11; a recursive Python behaviour-tree interpreter for 12; exact neighbour lists from the rules, Dijkstra on heapq, path validity and settle bounds for 13; a brute-force scan by (distance^2, x, y, index) for 14; optimal cost, path validity and settle order for 4",
   "outcomeTags": {
     "0": "operation completed normally",
     "1": "operation refused its input (an exception); the payload is empty"

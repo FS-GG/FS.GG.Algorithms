@@ -34,6 +34,10 @@
     <Compile Include="Graph/UnionFind.fs" />
     <Compile Include="Graph/TopoSort.fsi" />
     <Compile Include="Graph/TopoSort.fs" />
+    <Compile Include="Search/Grid/DoorGrid.fsi" />
+    <Compile Include="Search/Grid/DoorGrid.fs" />
+    <Compile Include="Spatial/KdTree.fsi" />
+    <Compile Include="Spatial/KdTree.fs" />
     <Compile Include="Decision/Arbitration.fsi" />
     <Compile Include="Decision/Arbitration.fs" />
     <Compile Include="Decision/BehaviourTree.fsi" />

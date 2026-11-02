@@ -9,6 +9,8 @@ open FS.GG.Algorithms.Numerics
 open FS.GG.Algorithms.Random
 open FS.GG.Algorithms.Graph
 open FS.GG.Algorithms.Decision
+open FS.GG.Algorithms.Search.Grid
+open FS.GG.Algorithms.Spatial
 
 /// The fixed seed of every bench input.
 let seed = 20261101
@@ -150,6 +152,44 @@ let prepareBehaviourTree (n: int) : unit -> int =
             count <- c
         count
 
+/// spatial/kd-tree: 1000 nearest-neighbour queries against n seeded points (built once). Work: the sum of the
+/// returned points' indices modulo 2^31 (deterministic).
+let prepareKdNearest (n: int) : unit -> int =
+    let coords = ints (2 * n + 2000) 32767
+    let tree = KdTree.build [ for i in 0 .. n - 1 -> coords.[2 * i] - 16383, coords.[2 * i + 1] - 16383, i ]
+    fun () ->
+        let mutable acc = 0
+        for q in 0..999 do
+            match KdTree.nearest (coords.[2 * n + 2 * q] - 16383) (coords.[2 * n + 2 * q + 1] - 16383 + 0) tree with
+            | Some p -> acc <- (acc + p.Index) &&& 0x7FFFFFFF
+            | None -> ()
+        acc
+
+/// search.grid/doors-and-planes: corner to corner on a seeded side x side, two-plane grid with walls, doors
+/// and stairs, 8-way. Work: nodes expanded.
+let prepareDoorGrid (side: int) : unit -> int =
+    let cells = ints (2 * side * side) 100
+    let edgeKinds = ints (4 * side * side) 100
+    let index (t: Tile) = (t.Plane * side + t.Y) * side + t.X
+    let grid =
+        { Walkable =
+            (fun t ->
+                t.Plane >= 0 && t.Plane < 2 && t.X >= 0 && t.Y >= 0 && t.X < side && t.Y < side
+                && (cells.[index t] >= 15 || (t.X = 0 && t.Y = 0) || (t.X = side - 1 && t.Y = side - 1)))
+          Edge =
+            (fun t dx dy ->
+                // One record per undirected edge: the lower or left tile owns it.
+                let o = if dx < 0 || dy < 0 then { t with X = t.X + dx; Y = t.Y + dy } else t
+                let k = edgeKinds.[2 * index o + (if dx <> 0 then 0 else 1)]
+                if k < 5 then Passage.Blocked elif k < 12 then Passage.Door(k - 5) else Passage.Open)
+          Transitions =
+            (fun t -> if t.X % 16 = 0 && t.Y % 16 = 0 then [ { t with Plane = 1 - t.Plane }, 20 ] else [])
+          Diagonal = true
+          OrthogonalCost = 10
+          DiagonalCost = 14 }
+    fun () ->
+        (DoorGrid.findPath grid true System.Int32.MaxValue { Plane = 1; X = side - 1; Y = side - 1 } { Plane = 0; X = 0; Y = 0 }).Expanded
+
 /// The nearest-rank sample of ascending timings, for the Node harness's summaries (harvest 20: the library's
 /// own percentile, exact integer rank).
 let nearestRank (percent: int) (sortedSamples: float[]) = Percentile.ofSorted percent 100 sortedSamples
@@ -164,4 +204,6 @@ let kernels: (string * int list * (int -> unit -> int)) list =
       "graph/iterative-tarjan-scc/random-digraph", [ 1000; 10000; 100000 ], prepareScc
       "graph/union-find/random-unions", [ 1000; 10000; 100000 ], prepareUnionFind
       "graph/topological-sort-cpm/random-dag", [ 1000; 10000; 100000 ], prepareTopoCpm
-      "decision/behaviour-tree/ticks", [ 1000; 10000; 100000 ], prepareBehaviourTree ]
+      "decision/behaviour-tree/ticks", [ 1000; 10000; 100000 ], prepareBehaviourTree
+      "spatial/kd-tree/nearest-1000-queries", [ 1000; 10000; 100000 ], prepareKdNearest
+      "search.grid/doors-and-planes/corner-to-corner", [ 32; 128; 512 ], prepareDoorGrid ]
