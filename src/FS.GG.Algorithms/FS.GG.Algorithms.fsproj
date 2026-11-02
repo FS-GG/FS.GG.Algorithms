@@ -29,6 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FS.GG.Algorithms.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Fable.Package.SDK"
                       PrivateAssets="all"
                       IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />

@@ -36,10 +36,13 @@ module BinaryHeap =
     /// Whether the heap is empty. O(1).
     val isEmpty: heap: BinaryHeap<'T> -> bool
 
-    /// Adds an element. O(log n). Raises `System.InvalidOperationException` after 2^31 - 1 pushes made
-    /// while the heap was continuously non-empty (the insertion stamp is an `int32`; it restarts whenever
-    /// the heap becomes empty, which is unobservable).
+    /// Adds an element. O(log n) amortised. The insertion stamp is an `int32`: it restarts when the heap
+    /// becomes empty, and when it reaches 2^31 - 1 the live stamps are renumbered 0..n-1 in their existing
+    /// order (O(n log n), once per ~2^31 pushes), so the pop order is unchanged and no push ever fails.
     val push: item: 'T -> heap: BinaryHeap<'T> -> unit
+
+    /// Test hook: a heap whose stamps renumber at `stampLimit` instead of 2^31 - 1.
+    val internal createWithStampLimit: stampLimit: int -> compare: ('T -> 'T -> int) -> BinaryHeap<'T>
 
     /// The element `pop` would return, without removing it. O(1).
     val tryPeek: heap: BinaryHeap<'T> -> 'T option
@@ -90,6 +93,10 @@ module IndexedHeap =
 
     /// The current priority of `key`, if present. O(1).
     val tryPriority: key: int -> heap: IndexedHeap<'P> -> 'P option
+
+    /// Test hook: an indexed heap whose stamps renumber at `stampLimit` instead of 2^31 - 1 (see
+    /// `BinaryHeap.push`: renumbering keeps the order, so pops are unchanged).
+    val internal createWithStampLimit: stampLimit: int -> compare: ('P -> 'P -> int) -> IndexedHeap<'P>
 
     /// Adds `key` with `priority`. O(log n). Raises `System.ArgumentException` when `key` is negative or
     /// already present.

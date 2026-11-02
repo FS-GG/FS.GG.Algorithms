@@ -246,6 +246,46 @@ let xoshiro (r: Reader) (w: Writer) =
             s <- s'
     | sub -> failwithf "xoshiro: unknown sub-operation %d" sub
 
+/// The low 32 bits of a product from 16-bit halves (exact on both runtimes; the library's own is internal).
+let private imul (a: int) (b: int) =
+    let a0 = a &&& 0xFFFF
+    let b0 = b &&& 0xFFFF
+    let a1 = (a >>> 16) &&& 0xFFFF
+    let b1 = (b >>> 16) &&& 0xFFFF
+    (a0 * b0) + (((a1 * b0 + a0 * b1) &&& 0xFFFF) <<< 16)
+
+/// Operation 10: a fixed-seed Q16.16 sweep. Input: i32 seed, u32 pairs. Each pair is a = x >>> (y & 15),
+/// b = z >>> (t & 15) from four xoshiro128** draws. Output: u32 pairs, then one FNV-1a-style digest
+/// (h = imul(h xor r, 16777619) from 0x811C9DC5) per function: add, sub, mul, div, ofRatio, sqrt, neg,
+/// toIntRound, compare.
+let fixedSweep (r: Reader) (w: Writer) =
+    let mutable rng = Xoshiro128.seed (r.I32())
+    let pairs = r.U32()
+    let draw () =
+        let struct (x, s) = Xoshiro128.next rng
+        rng <- s
+        x
+    let h = Array.create 9 0x811C9DC5
+    let mix k (v: int) = h.[k] <- imul (h.[k] ^^^ v) 16777619
+    for _ in 1..pairs do
+        let a0 = draw ()
+        let a = a0 >>> (draw () &&& 15)
+        let b0 = draw ()
+        let b = b0 >>> (draw () &&& 15)
+        let fa = Fixed.ofRaw a
+        let fb = Fixed.ofRaw b
+        mix 0 (Fixed.add fa fb).Raw
+        mix 1 (Fixed.sub fa fb).Raw
+        mix 2 (Fixed.mul fa fb).Raw
+        mix 3 (Fixed.div fa fb).Raw
+        mix 4 (Fixed.ofRatio a b).Raw
+        mix 5 (Fixed.sqrt fa).Raw
+        mix 6 (Fixed.neg fa).Raw
+        mix 7 (Fixed.toIntRound fa)
+        mix 8 (Fixed.compare fa fb)
+    w.U32 pairs
+    Array.iter w.I32 h
+
 /// Runs one case and returns its canonical record:
 /// u32 recordByteCount (bytes after this field), u32 caseId, u16 operationId, u16 outcomeTag, payload.
 let runCase (caseId: int) (operation: int) (payload: int[]) =
@@ -259,6 +299,7 @@ let runCase (caseId: int) (operation: int) (payload: int[]) =
             | 3 -> fixedVectors r body
             | 4 -> bestFirst r body
             | 5 -> xoshiro r body
+            | 10 -> fixedSweep r body
             | _ -> failwithf "unknown operation %d" operation
             completed
         with _ ->

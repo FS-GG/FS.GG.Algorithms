@@ -102,6 +102,32 @@ let tests =
               && (Fixed.max (f a) (f b)).Raw = max a b
               && compare (f a) (f b) = compare a b
 
+          testCase "Fixed-seed sweep: 10^5 pairs x 9 operations against exact BigInteger oracles"
+          <| fun () ->
+              // Pairs from a fixed xoshiro stream: full int32, plus every arithmetic shift 0..15 of it, so
+              // magnitudes cover the whole range and both saturation edges.
+              let mutable rng = FS.GG.Algorithms.Random.Xoshiro128.seed 20261102
+              let draw () =
+                  let struct (x, r) = FS.GG.Algorithms.Random.Xoshiro128.next rng
+                  rng <- r
+                  x
+              let mutable mismatches = []
+              for _ in 1..100000 do
+                  let a = draw () >>> (draw () &&& 15)
+                  let b = draw () >>> (draw () &&& 15)
+                  let check name actual expected =
+                      if actual <> expected then mismatches <- (name, a, b, actual, expected) :: mismatches
+                  check "add" (Fixed.add (f a) (f b)).Raw (Oracles.fixedAdd a b)
+                  check "sub" (Fixed.sub (f a) (f b)).Raw (Oracles.fixedSub a b)
+                  check "mul" (Fixed.mul (f a) (f b)).Raw (Oracles.fixedMul a b)
+                  check "div" (Fixed.div (f a) (f b)).Raw (Oracles.fixedDiv a b)
+                  check "ofRatio" (Fixed.ofRatio a b).Raw (Oracles.fixedDiv a b)
+                  check "sqrt" (Fixed.sqrt (f a)).Raw (Oracles.fixedSqrt a)
+                  check "neg" (Fixed.neg (f a)).Raw (Oracles.clamp (-(System.Numerics.BigInteger a)))
+                  check "toIntRound" (Fixed.toIntRound (f a)) (int (floor (float a / 65536.0 + 0.5)))
+                  check "compare" (Fixed.compare (f a) (f b)) (compare a b)
+              Expect.isEmpty (List.truncate 5 mismatches) "mismatches against the exact oracles"
+
           testCase "ADR-0098 §3 edge-case vectors"
           <| fun () ->
               let mx = System.Int32.MaxValue

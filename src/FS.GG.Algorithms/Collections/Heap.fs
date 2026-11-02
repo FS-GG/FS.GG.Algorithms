@@ -2,8 +2,20 @@ namespace FS.GG.Algorithms.Collections
 
 // Layer 0 (ADR-0098 §3 rule 6): uses nothing else in the library. Every loop is iterative.
 
+/// Renumbers live stamps 0..n-1 in their existing order, so relative order (and so every pop) is unchanged.
+/// Returns the next free stamp. Raises when the heap itself holds `limit` entries (2^31 - 1 in practice).
+module private Stamps =
+    let renumber (stamps: ResizeArray<int>) (limit: int) (onMove: int -> int -> unit) =
+        let n = stamps.Count
+        if n >= limit then invalidOp "heap: the number of live entries reached the insertion-stamp limit"
+        let order = Array.init n id
+        Array.sortInPlaceWith (fun a b -> compare stamps.[a] stamps.[b]) order
+        for rank in 0 .. n - 1 do
+            onMove order.[rank] rank
+        n
+
 [<Sealed; Class>]
-type BinaryHeap<'T>(compare: 'T -> 'T -> int) =
+type BinaryHeap<'T>(compare: 'T -> 'T -> int, stampLimit: int) =
     let items = ResizeArray<'T>()
     let stamps = ResizeArray<int>()
     let mutable nextStamp = 0
@@ -53,8 +65,8 @@ type BinaryHeap<'T>(compare: 'T -> 'T -> int) =
 
     member _.Push(item: 'T) =
         if items.Count = 0 then nextStamp <- 0
-        if nextStamp = System.Int32.MaxValue then
-            invalidOp "BinaryHeap: more than 2^31 - 1 pushes while non-empty; the insertion stamp would overflow"
+        if nextStamp >= stampLimit then
+            nextStamp <- Stamps.renumber stamps stampLimit (fun i rank -> stamps.[i] <- rank)
         items.Add item
         stamps.Add nextStamp
         nextStamp <- nextStamp + 1
@@ -83,7 +95,9 @@ type BinaryHeap<'T>(compare: 'T -> 'T -> int) =
 [<RequireQualifiedAccess>]
 module BinaryHeap =
 
-    let create (compare: 'T -> 'T -> int) = BinaryHeap<'T>(compare)
+    let create (compare: 'T -> 'T -> int) = BinaryHeap<'T>(compare, System.Int32.MaxValue)
+
+    let internal createWithStampLimit (stampLimit: int) (compare: 'T -> 'T -> int) = BinaryHeap<'T>(compare, stampLimit)
 
     let count (heap: BinaryHeap<'T>) = heap.Count
 
@@ -103,7 +117,7 @@ module BinaryHeap =
     let clear (heap: BinaryHeap<'T>) = heap.Clear()
 
 [<Sealed; Class>]
-type IndexedHeap<'P>(compare: 'P -> 'P -> int) =
+type IndexedHeap<'P>(compare: 'P -> 'P -> int, stampLimit: int) =
     // Heap arrays, parallel by heap position.
     let keys = ResizeArray<int>()
     let prios = ResizeArray<'P>()
@@ -163,8 +177,8 @@ type IndexedHeap<'P>(compare: 'P -> 'P -> int) =
 
     let stamp () =
         if keys.Count = 0 then nextStamp <- 0
-        if nextStamp = System.Int32.MaxValue then
-            invalidOp "IndexedHeap: more than 2^31 - 1 priority changes while non-empty; the stamp would overflow"
+        if nextStamp >= stampLimit then
+            nextStamp <- Stamps.renumber stamps stampLimit (fun i rank -> stamps.[i] <- rank)
         let s = nextStamp
         nextStamp <- nextStamp + 1
         s
@@ -247,7 +261,9 @@ type IndexedHeap<'P>(compare: 'P -> 'P -> int) =
 [<RequireQualifiedAccess>]
 module IndexedHeap =
 
-    let create (compare: 'P -> 'P -> int) = IndexedHeap<'P>(compare)
+    let create (compare: 'P -> 'P -> int) = IndexedHeap<'P>(compare, System.Int32.MaxValue)
+
+    let internal createWithStampLimit (stampLimit: int) (compare: 'P -> 'P -> int) = IndexedHeap<'P>(compare, stampLimit)
 
     let count (heap: IndexedHeap<'P>) = heap.Count
 

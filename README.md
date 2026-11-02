@@ -71,7 +71,8 @@ It uses fixed seeded inputs at three declared sizes and records deterministic wo
 [`bench/results.schema.v1.json`](bench/results.schema.v1.json).
 
 A recording run is admitted only by FS-GG/.github's `fdev-lane-capacity.py --max-load-per-core 0.25`. A held
-probe waits and is never overridden. `bench/run.sh --smoke` proves the harness without recording anything.
+probe waits and is never overridden, and a recording run refuses a dirty tree. `bench/run.sh --smoke` proves the
+harness without recording anything.
 Work counts may gate regressions; timings never do.
 
 ## Licence

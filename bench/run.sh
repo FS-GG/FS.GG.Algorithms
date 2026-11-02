@@ -41,14 +41,17 @@ if $smoke; then
   printf '{"verdict":"admit","smoke":true}\n' >"$work/admission.json"
 else
   [ -f "$probe" ] || { echo "bench: no capacity probe at $probe (set FSGG_CAPACITY_PROBE); recording runs are fdev-only" >&2; exit 2; }
+  # A recorded baseline must name the exact source it measured; only a smoke run (which records nothing) may be dirty.
+  [ -z "$(git -C "$root" status --porcelain)" ] || { echo "bench: refusing to record a baseline from a dirty tree; commit or stash first" >&2; exit 2; }
   admit
 fi
 
 ( cd "$root" && dotnet tool restore >/dev/null )
-dotnet build "$root/bench/dotnet" -c Release --nologo -v q | grep -E "error|Build succeeded" || true
+# shellcheck source=eng/fable-compile.sh
+. "$root/eng/fable-compile.sh"
+run_step "$work/build-bench.log" dotnet build "$root/bench/dotnet" -c Release --nologo -v q
 dotnet run --project "$root/bench/dotnet" -c Release --no-build -- workcounts "$work/workcounts.json"
-( cd "$root" && dotnet fable bench/fable/FS.GG.Algorithms.Bench.Fable.fsproj --lang javascript --outDir "$work/bench-js" ) \
-  | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Fable compilation|rror" || true
+fable_compile "$root" "$work/fable-bench.log" bench/fable/FS.GG.Algorithms.Bench.Fable.fsproj --lang javascript --outDir "$work/bench-js"
 printf '{"type":"module"}\n' >"$work/bench-js/package.json"
 
 $smoke || admit
@@ -61,7 +64,9 @@ report="$(ls "$work"/bdn/results/*-report-full.json | head -1)"
 host="$(hostname -s 2>/dev/null || uname -n)"
 commit="$(git -C "$root" rev-parse HEAD)"
 dirty=""
-[ -z "$(git -C "$root" status --porcelain -- src bench)" ] || dirty="--dirty"
+if [ -n "$(git -C "$root" status --porcelain)" ]; then
+  dirty="--dirty"
+fi
 if $smoke; then
   out="$work/smoke-baseline.json"
 else

@@ -79,6 +79,50 @@ let private isValidGraphPath (c: GraphCase) (path: int list) (cost: int) =
             c.Graph.Edges |> List.filter (fun (x, y, _) -> x = a && y = b) |> List.map (fun (_, _, w) -> w))
         |> fun steps -> steps |> List.forall (List.isEmpty >> not) && steps |> List.sumBy List.min = cost)
 
+/// The open-set model: a plain list of (node, g, h, stamp), popped by the least (f, h, TieBreak, stamp). It
+/// restamps a node whenever its g improves (reopening a closed node), exactly the contract in BestFirst.fsi.
+let private bestFirstModel (g: Digraph) (source: int) (target: int) (h: int -> int) (tie: int -> int -> int) =
+    let best = System.Collections.Generic.Dictionary<int, int>()
+    let mutable openList: (int * int * int * int) list = [ source, 0, h source, 0 ]
+    let mutable stamp = 1
+    best.[source] <- 0
+    let order = ResizeArray<int>()
+    let mutable cost = None
+    let before (v1, g1, h1, s1) (v2, g2, h2, s2) =
+        let f1, f2 = g1 + h1, g2 + h2
+        if f1 <> f2 then f1 < f2
+        elif h1 <> h2 then h1 < h2
+        else
+            let t = tie v1 v2
+            if t <> 0 then t < 0 else s1 < s2
+    while cost.IsNone && not openList.IsEmpty do
+        let first = openList |> List.reduce (fun a b -> if before b a then b else a)
+        let (v, gv, _, _) = first
+        openList <- openList |> List.filter (fun e -> e <> first)
+        order.Add v
+        if v = target then
+            cost <- Some gv
+        else
+            for (w, c) in digraphNeighbours g v do
+                let ng = gv + c
+                match best.TryGetValue w with
+                | true, old when old <= ng -> ()
+                | _ ->
+                    best.[w] <- ng
+                    openList <- (openList |> List.filter (fun (x, _, _, _) -> x <> w)) @ [ w, ng, h w, stamp ]
+                    stamp <- stamp + 1
+    List.ofSeq order, cost
+
+let private popOrderCase =
+    Arb.fromGen (
+        gen {
+            let! c = (graphCase 10).Generator
+            let! hs = Gen.arrayOfLength 10 (Gen.choose (0, 12))
+            let! coarse = Gen.elements [ true; false ]
+            return c, hs, coarse
+        }
+    )
+
 let tests =
     testList
         "Graph.BestFirst"
@@ -159,6 +203,24 @@ let tests =
               && (match bounded.Outcome with
                   | BudgetExhausted -> bounded.Expanded = budget && unbounded.Expanded > budget
                   | _ -> bounded = unbounded)
+
+          property "Pop order equals a list model: least f, then h, then TieBreak, then FIFO by last-set stamp" popOrderCase
+          <| fun (c, hs, coarse) ->
+              // An arbitrary (possibly inconsistent) heuristic and, half the time, a tie-break that is NOT total
+              // (it compares v / 3), so the heap's FIFO fallback decides some pops.
+              let h v = hs.[v]
+              let tie = if coarse then (fun (a: int) (b: int) -> compare (a / 3) (b / 3)) else compare
+              let expanded = ResizeArray<int>()
+              let result =
+                  BestFirst.search
+                      { Start = c.Source
+                        IsGoal = (fun v -> expanded.Add v; v = c.Target)
+                        Neighbours = digraphNeighbours c.Graph
+                        Heuristic = h
+                        TieBreak = tie
+                        MaxExpanded = System.Int32.MaxValue }
+              let modelOrder, modelCost = bestFirstModel c.Graph c.Source c.Target h tie
+              List.ofSeq expanded = modelOrder && costOf result = modelCost
 
           property "The search is deterministic: equal problems give equal results" gridCase
           <| fun c ->

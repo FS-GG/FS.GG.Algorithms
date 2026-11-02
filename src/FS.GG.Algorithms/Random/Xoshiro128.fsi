@@ -31,6 +31,11 @@ module Xoshiro128 =
     /// (xor-shift 16, multiply 0x85EBCA6B, xor-shift 13, multiply 0xC2B2AE35, xor-shift 16). `mix32` is a
     /// bijection and the four inputs are distinct, so the state is never all zero; the guard in `ofState`
     /// still applies.
+    ///
+    /// SEED OVERLAP (a property of every SplitMix-style expander): word k of `seed s` equals word k+1 of
+    /// `seed (s - 0x9E3779B9)`, so seeds that differ by a small multiple of 0x9E3779B9 share state words, in
+    /// shifted positions. The streams still differ, but do not derive related streams by adding the golden
+    /// constant to a seed. Derive independent streams with `split` (or `jump`), or mix distinct seeds first.
     val seed: seed: int -> Xoshiro128
 
     /// The state with these four words. Raises `System.ArgumentException` when all four are zero, the one

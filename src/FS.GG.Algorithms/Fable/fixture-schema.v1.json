@@ -39,14 +39,20 @@
       "operation": "Xoshiro128 vectors",
       "input": "u8 sub: 0 seed (i32 seed, u32 n) | 1 ofState (4 i32, u32 n) | 2 split (i32 seed, u32 n) | 3 nextBelow (i32 seed, i32 bound, u32 n) | 4 jump (i32 seed, u32 n) | 5 nextInRange (i32 seed, i32 lo, i32 hi, u32 n)",
       "payload": "0: 4 i32 state, n i32 outputs; 1: n outputs; 2: parent state, n outputs, child state, n outputs; 3: n values, 4 i32 final state; 4: jumped state, n outputs; 5: n values"
+    },
+    {
+      "id": 10,
+      "operation": "Fixed (Q16.16) fixed-seed sweep",
+      "input": "i32 seed, u32 pairs; per pair four xoshiro128** draws x, y, z, t give a = x >>> (y & 15) and b = z >>> (t & 15) (arithmetic shifts)",
+      "payload": "u32 pairs, then 9 i32 digests (h = imul(h xor r, 16777619) from 0x811C9DC5) of add, sub, mul, div, ofRatio, sqrt a, neg a, toIntRound a, compare"
     }
   ],
   "inputs": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/cases.bin",
-  "inputsSha256": "c9a81aba69e369043168112e61b17c79b6de3d266f82d49e5650629bc55ef5b7",
+  "inputsSha256": "fe2cd77db4164fce6f43d2d6f3ceb447f651ed22c3dbbfa0209d420d15f41c87",
   "inputsGenerator": "scripts/lockstep-fixtures.py generate (fixed constants and a 32-bit LCG; no clock, network or host randomness)",
   "oracle": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/expected.bin",
-  "oracleSha256": "01be413a6f7a1c98cb75e9c3c0523f52275eafef100df67bb0c12e6efe9d144e",
-  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3 and 5; optimal cost, path validity and settle order for operation 4",
+  "oracleSha256": "59fd1eac117f80cce5ef205a4cf01e56d8f576d276bc63c53e10c34e4e74ea93",
+  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5 and 10 (the 10^5-pair sweep recomputed exactly); optimal cost, path validity and settle order for operation 4",
   "outcomeTags": {
     "0": "operation completed normally",
     "1": "operation refused its input (an exception); the payload is empty"

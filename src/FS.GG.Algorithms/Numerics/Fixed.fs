@@ -65,9 +65,9 @@ module internal FixedRaw =
                 // Invariant: 0 <= r < d, so r + bit and r + r + bit (when below d) fit in an int32.
                 let mutable r = 0
                 let mutable q = 0
-                let mutable state = 0 // 0 running, 1 saturated, 2 exactly 2^31 (negative result only)
+                let mutable saturated = false
                 let mutable i = 47
-                while state = 0 && i >= 0 do
+                while not saturated && i >= 0 do
                     let bit =
                         if i < 16 then 0
                         elif aIsMin then (if i = 47 then 1 else 0)
@@ -80,14 +80,11 @@ module internal FixedRaw =
                         else
                             r <- r + r + bit
                             0
-                    if q >= 0x40000000 then
-                        // 2q + qbit >= 2^31: in range only as the final bit of a negative quotient of 2^31.
-                        if negative && q = 0x40000000 && qbit = 0 && i = 0 then state <- 2 else state <- 1
-                    else
-                        q <- q + q + qbit
+                    // 2q + qbit would reach 2^31: beyond MaxValue, and for a negative quotient the saturated
+                    // value MinValue is also the exact one when the magnitude is exactly 2^31.
+                    if q >= 0x40000000 then saturated <- true else q <- q + q + qbit
                     i <- i - 1
-                if state = 1 then (if negative then MinRaw else MaxRaw)
-                elif state = 2 then MinRaw
+                if saturated then (if negative then MinRaw else MaxRaw)
                 elif negative then -q
                 else q
 

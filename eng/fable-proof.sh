@@ -29,11 +29,36 @@ command -v node >/dev/null || { echo "fable-proof: node is required" >&2; exit 2
 strip() { sed 's/\x1b\[[0-9;]*m//g'; }
 hexargs() { python3 -I -c 'import sys,textwrap; d=open(sys.argv[1],"rb").read().hex(); print("\n".join(textwrap.wrap(d,100000)))' "$1"; }
 
+# shellcheck source=eng/fable-compile.sh
+. "$root/eng/fable-compile.sh"
 ( cd "$root" && dotnet tool restore >/dev/null )
-fable() { ( cd "$root" && dotnet fable "$@" ); }
-fable_version="$(fable --version | strip | head -1)"
+fable_version="$( (cd "$root" && dotnet fable --version) | strip | head -1)"
 echo "fable: $fable_version; node: $(node --version); dotnet: $(dotnet --version)"
 [ "$fable_version" = "5.18.0" ] || { echo "fable-proof: expected the pinned Fable 5.18.0" >&2; exit 1; }
+
+echo "== 0. negative control: the gate must reject code Fable cannot compile"
+negative="$work/negative-control"
+mkdir -p "$negative"
+cat >"$negative/Negative.fsproj" <<XML
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Library</OutputType></PropertyGroup>
+  <ItemGroup><Compile Include="Negative.fs" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="$root/src/FS.GG.Algorithms/FS.GG.Algorithms.fsproj" /></ItemGroup>
+</Project>
+XML
+cat >"$negative/Negative.fs" <<'FS'
+module Negative
+// Deliberately not Fable-compatible: System.Threading is unsupported (ADR-0098 §3 rule 4).
+let pause () = System.Threading.Thread.Sleep 1
+let heap () = FS.GG.Algorithms.Collections.BinaryHeap.create compare<int>
+FS
+printf '<Project />\n' >"$negative/Directory.Build.props"
+printf '<Project />\n' >"$negative/Directory.Packages.props"
+if fable_compile "$root" "$work/negative-control.log" "$negative/Negative.fsproj" --lang javascript --outDir "$work/negative-js" >/dev/null 2>&1; then
+  echo "fable-proof: FAILED, the negative control compiled: the Fable gate cannot fail" >&2
+  exit 1
+fi
+echo "fable-proof: negative control rejected by the gate, as required ($(grep -c 'error FABLE' "$work/negative-control.log") Fable error(s))"
 
 echo "== 1. corpus and digests"
 python3 -I "$root/scripts/lockstep-fixtures.py" check
@@ -51,9 +76,9 @@ echo "== 2. independent oracle"
 python3 -I "$root/scripts/lockstep-fixtures.py" oracle "$fixtures/expected.bin"
 
 echo "== 3. .NET and Fable/Node canonical output"
-dotnet build "$root/tests/FS.GG.Algorithms.Lockstep" -c Release --nologo -v q | strip | grep -E "error|Warn|Build succeeded" || true
+run_step "$work/build-lockstep.log" dotnet build "$root/tests/FS.GG.Algorithms.Lockstep" -c Release --nologo -v q
 dotnet run --project "$root/tests/FS.GG.Algorithms.Lockstep" -c Release --no-build -- fixtures $(hexargs "$fixtures/cases.bin") >"$work/dotnet.hex"
-fable "$root/tests/FS.GG.Algorithms.Lockstep" --lang javascript --outDir "$work/lockstep-js" | strip | grep -E "Fable compilation|rror" || true
+fable_compile "$root" "$work/fable-lockstep.log" "$root/tests/FS.GG.Algorithms.Lockstep" --lang javascript --outDir "$work/lockstep-js"
 printf '{"type":"module"}\n' >"$work/lockstep-js/package.json"
 node "$work/lockstep-js/Program.js" fixtures $(hexargs "$fixtures/cases.bin") >"$work/node.hex"
 python3 -I "$root/scripts/lockstep-fixtures.py" hex-to-bin "$work/dotnet.hex" "$work/dotnet.bin"
@@ -68,7 +93,7 @@ node "$work/lockstep-js/Program.js" stack | sed 's/^/node   /'
 
 echo "== 5. packed package and clean Fable consumer"
 version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$root/src/FS.GG.Algorithms/FS.GG.Algorithms.fsproj")"
-dotnet pack "$root/src/FS.GG.Algorithms" -c Release -o "$work/feed" --nologo -v q | strip | grep -E "error|Successfully" || true
+run_step "$work/pack.log" dotnet pack "$root/src/FS.GG.Algorithms" -c Release -o "$work/feed" --nologo -v q
 nupkg="$work/feed/FS.GG.Algorithms.$version.nupkg"
 python3 -I - "$nupkg" "$root/src/FS.GG.Algorithms/FS.GG.Algorithms.fsproj" <<'PY'
 import re, sys, zipfile
@@ -110,7 +135,7 @@ sed -i "s/\$(AlgorithmsVersion)/$version/" "$consumer/Consumer.fsproj"
 export NUGET_PACKAGES="$work/nuget-packages"
 ( cd "$root" && dotnet tool restore >/dev/null )
 ( cd "$consumer" && dotnet run ) >"$work/consumer-dotnet.txt"
-( cd "$root" && dotnet fable "$consumer/Consumer.fsproj" --lang javascript --outDir "$work/consumer-js" ) | strip | grep -E "Fable compilation|rror" || true
+fable_compile "$root" "$work/fable-consumer.log" "$consumer/Consumer.fsproj" --lang javascript --outDir "$work/consumer-js"
 printf '{"type":"module"}\n' >"$work/consumer-js/package.json"
 node "$work/consumer-js/Program.js" >"$work/consumer-node.txt"
 echo "dotnet $(cat "$work/consumer-dotnet.txt")"

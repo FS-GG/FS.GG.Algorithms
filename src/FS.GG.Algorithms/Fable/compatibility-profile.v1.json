@@ -20,7 +20,7 @@
     {
       "name": "Numerics.Fixed: add, sub, mul, div, sqrt, neg, abs, ofInt, ofRatio, toIntFloor, toIntCeiling, toIntRound, compare, min, max and the operators",
       "grade": "LockstepExact",
-      "evidence": "fixture-schema.v1 operation 3; cases 3001-3004 including the ADR-0098 §3 F2 edge vectors; FsCheck against exact BigInteger oracles"
+      "evidence": "fixture-schema.v1 operations 3 and 10; cases 3001-3004 including the ADR-0098 \u00a73 F2 edge vectors, and case 10001, a 10^5-pair fixed-seed sweep digested per function and recomputed exactly in Python; FsCheck and a 10^5-pair sweep against exact BigInteger oracles"
     },
     {
       "name": "Numerics.Fixed: ofFloat, toFloat",
@@ -45,8 +45,8 @@
   ],
   "defaultGrade": "Unclassified",
   "notes": [
-    "Unclassified is not admissible for a new surface (ADR-0098 §3 rule 2); every public surface is listed above.",
-    "Changing the output of a LockstepExact surface for any input is a breaking change with a new profileId. The two heap ordering contracts are frozen: FS.GG.Game.Core pins them (ADR-0098 §1).",
+    "Unclassified is not admissible for a new surface (ADR-0098 \u00a73 rule 2); every public surface is listed above.",
+    "Changing the output of a LockstepExact surface for any input is a breaking change with a new profileId. The two heap ordering contracts are frozen: FS.GG.Game.Core pins them (ADR-0098 \u00a71).",
     "status becomes published-contract only when a released package carries this profile."
   ]
 }

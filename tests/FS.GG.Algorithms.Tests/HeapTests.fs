@@ -247,6 +247,56 @@ let tests =
               let order = List.init 3 (fun _ -> fst (IndexedHeap.tryPop h).Value)
               Expect.equal order [ 1; 2; 0 ] "restamp is remove-and-insert"
 
+          property "BinaryHeap: renumbering stamps at a small limit leaves every pop unchanged" heapOps
+          <| fun ops ->
+              // Keep fewer than `limit` live entries (a push at the cap becomes a pop) so renumbering always fits.
+              let limit = 6
+              let mutable live = 0
+              let bounded =
+                  ops
+                  |> List.map (fun op ->
+                      match op with
+                      | Push _ when live >= limit - 1 ->
+                          live <- live - 1
+                          Pop
+                      | Push _ ->
+                          live <- live + 1
+                          op
+                      | Pop ->
+                          live <- max 0 (live - 1)
+                          op
+                      | Peek -> op)
+              let h = BinaryHeap.createWithStampLimit limit (fun (a: int * int) (b: int * int) -> compare (fst a) (fst b))
+              let observed =
+                  [ for op in bounded do
+                        match op with
+                        | Push(p, v) -> BinaryHeap.push (p, v) h
+                        | Pop -> yield BinaryHeap.tryPop h
+                        | Peek -> yield BinaryHeap.tryPeek h ]
+              observed = runModel bounded
+
+          property "IndexedHeap: renumbering stamps at a small limit leaves every pop unchanged" indexedOps
+          <| fun ops ->
+              // 13 keys fit under the limit, so renumbering always has room; it fires many times per run.
+              let limit = 16
+              let h = IndexedHeap.createWithStampLimit limit compare
+              let attempt f =
+                  try
+                      f ()
+                      Done
+                  with :? System.ArgumentException ->
+                      Refused
+              let observed =
+                  [ for op in ops do
+                        match op with
+                        | Insert(k, p) -> yield attempt (fun () -> IndexedHeap.insert k p h)
+                        | Decrease(k, p) -> yield attempt (fun () -> IndexedHeap.decreaseKey k p h)
+                        | Update(k, p) -> yield attempt (fun () -> IndexedHeap.update k p h)
+                        | Remove k -> yield Removed(IndexedHeap.remove k h)
+                        | IPop -> yield Popped(IndexedHeap.tryPop h)
+                        | IPeek -> yield Popped(IndexedHeap.tryPeek h) ]
+              observed = runIndexedModel ops
+
           testCase "Stack safety: 10^5 pushes and pops (iterative sift, no recursion)"
           <| fun () ->
               let n = 100000

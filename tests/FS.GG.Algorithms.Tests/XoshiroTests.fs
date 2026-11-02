@@ -38,6 +38,19 @@ let tests =
               let actual = draws 10 (Xoshiro128.ofState 1 2 3 4) |> List.map uint32
               Expect.equal actual expected "first ten outputs"
 
+          testCase "Pinned split and seed constants (independent Python reference in scripts/lockstep-fixtures.py)"
+          <| fun () ->
+              let struct (parent, child) = Xoshiro128.split (Xoshiro128.ofState 1 2 3 4)
+              Expect.equal (Xoshiro128.state parent) (27274249, 25704967, 31982592, 12605441) "parent after four draws"
+              Expect.equal (Xoshiro128.state child) (2126828148, -1378916746, -1190340871, -1937435682) "child: mix32 (output xor SHA-256 IV word)"
+              Expect.equal (Xoshiro128.state (Xoshiro128.seed 0)) (-1832243442, 1020716019, 454327756, 1275600319) "seed 0"
+
+          testCase "Seed overlap, as documented: word k of seed s is word k+1 of seed (s - 0x9E3779B9)"
+          <| fun () ->
+              let (a0, a1, a2, _) = Xoshiro128.state (Xoshiro128.seed 5)
+              let (_, b1, b2, b3) = Xoshiro128.state (Xoshiro128.seed (5 - 0x9E3779B9))
+              Expect.equal (a0, a1, a2) (b1, b2, b3) "shifted words"
+
           testCase "ofState refuses the all-zero state"
           <| fun () ->
               Expect.isTrue (raises<System.ArgumentException> (fun () -> Xoshiro128.ofState 0 0 0 0 |> ignore)) "zero"

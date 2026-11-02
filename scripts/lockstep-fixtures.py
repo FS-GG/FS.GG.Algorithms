@@ -262,8 +262,12 @@ def xoshiro_cases():
     return cases
 
 
+def sweep_cases():
+    return [(10001, 10, W().i32(20261102).u32(100000).b)]
+
+
 def all_cases():
-    return heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases()
+    return heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases() + sweep_cases()
 
 
 def encode_cases(cases) -> bytes:
@@ -516,6 +520,26 @@ def oracle_payload(op: int, r: R) -> W:
             lo, hi, n = r.i32(), r.i32(), r.u32()
             for _ in range(n):
                 w.i32(lo + xo_below(s, hi - lo))
+    elif op == 10:
+        st = xo_seed(r.i32())
+        pairs = r.u32()
+        h = [0x811C9DC5] * 9
+
+        def draw():
+            return s32(xo_next(st))
+
+        for _ in range(pairs):
+            a0 = draw()
+            a = a0 >> (draw() & 15)
+            b0 = draw()
+            b = b0 >> (draw() & 15)
+            results = [fx(0, a, b), fx(1, a, b), fx(2, a, b), fx(3, a, b), fx(7, a, b), fx(4, a, 0), fx(5, a, 0),
+                       fx(11, a, 0), fx(12, a, b)]
+            for k, v in enumerate(results):
+                h[k] = ((h[k] ^ (v & M32)) * 16777619) & M32
+        w.u32(pairs)
+        for x in h:
+            w.i32(x)
     else:
         raise ValueError(op)
     return w
