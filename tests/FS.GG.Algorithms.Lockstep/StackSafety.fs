@@ -95,6 +95,29 @@ let private behaviourTreeDeep () =
     let s2, _, () = BehaviourTree.tick wide (fun _ () -> BtStatus.Failure, ()) (BehaviourTree.initial wide) ()
     s = BtStatus.Success && program.NodeCount = size + 1 && s2 = BtStatus.Failure
 
+/// Reactive composites 10^5 deep (a cursor at every level) and 10^5 wide; an interrupt then halts the whole
+/// running branch in one tick.
+let private behaviourTreeReactive () =
+    let mutable deep = BehaviourTree.Leaf 2
+    for _ in 1..size do
+        deep <- BehaviourTree.ReactiveSequence [ BehaviourTree.Leaf 1; deep ]
+    let program = BehaviourTree.compile (BehaviourTree.ReactiveFallback [ BehaviourTree.Leaf 0; deep ])
+    let leaf (interrupt: bool) (l: int) () =
+        match l with
+        | 0 -> (if interrupt then BtStatus.Success else BtStatus.Failure), ()
+        | 1 -> BtStatus.Success, ()
+        | _ -> BtStatus.Running, ()
+    let s1, st1, () = BehaviourTree.tick program (leaf false) (BehaviourTree.initial program) ()
+    let s2, st2, () = BehaviourTree.tick program (leaf true) st1 ()
+    let wide = BehaviourTree.compile (BehaviourTree.ReactiveFallback(List.init size BehaviourTree.Leaf))
+    let leafW (first: BtStatus) (l: int) () = (if l = 0 then first elif l = size - 1 then BtStatus.Running else BtStatus.Failure), ()
+    let w1, wst1, () = BehaviourTree.tick wide (leafW BtStatus.Failure) (BehaviourTree.initial wide) ()
+    let w2, wst2, () = BehaviourTree.tick wide (leafW BtStatus.Success) wst1 ()
+    s1 = BtStatus.Running && List.sum st1.Cursors = size + 1
+    && s2 = BtStatus.Success && st2 = BehaviourTree.initial program
+    && w1 = BtStatus.Running && List.head wst1.Cursors = size - 1
+    && w2 = BtStatus.Success && wst2 = BehaviourTree.initial wide
+
 let private doorCorridor () =
     let g =
         { Walkable = (fun t -> t.Plane = 0 && t.Y = 0 && t.X >= 0 && t.X < size)
@@ -140,6 +163,7 @@ let run () =
           "Arbitration 10^4 queued entries drained", arbitrationQueue
           "TopoSort.sort and criticalPath 10^5-node chain", topoChain
           "BehaviourTree 10^5 levels deep and 10^5 wide", behaviourTreeDeep
+          "BehaviourTree reactive 10^5 deep and wide, halting the running branch", behaviourTreeReactive
           "DoorGrid 10^5-tile corridor", doorCorridor
           "KdTree 10^5 collinear and duplicate points", kdDegenerate ]
     let results = checks |> List.map (fun (name, f) -> name, f ())

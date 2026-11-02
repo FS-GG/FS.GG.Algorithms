@@ -23,7 +23,7 @@ This repository also owns the `fs-gg-algorithms` knowledge pack, delivered under
 | `FS.GG.Algorithms.Search.Grid` | `DoorGrid` (layered-grid A*: thin walls, doors, planes and stairs, no corner cutting) | `LockstepExact` | an independently written adjacency plus Dijkstra |
 | `FS.GG.Algorithms.Spatial` | `KdTree` (nearest, k-nearest, radius and rectangle queries over integer points) | `LockstepExact` | a brute-force scan |
 | `FS.GG.Algorithms.Decision` | `Arbitration` (priority bands, pre-emption, suspend and resume) | `LockstepExact` | invariants after every input; no-starvation drain; a Python model |
-| `FS.GG.Algorithms.Decision` | `BehaviourTree` (a pure tick reducer: memory composites only, so no priority interrupts; parallel, decorators, blackboard) | `LockstepExact` | a recursive reference interpreter; fail-fast and idempotence properties |
+| `FS.GG.Algorithms.Decision` | `BehaviourTree` (a pure tick reducer: memory composites, and reactive Sequence and Fallback for priority interrupts that halt the abandoned running branch; parallel, decorators, blackboard) | `LockstepExact` | a recursive reference interpreter; an invariant fuzz of the halt invariant; fail-fast and idempotence properties |
 
 The grades are recorded in
 [`src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json`](src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json).

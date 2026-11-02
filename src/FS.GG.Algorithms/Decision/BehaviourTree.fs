@@ -2,8 +2,9 @@ namespace FS.GG.Algorithms.Decision
 
 // Behaviour trees as a pure tick reducer (ADR-0098 §11 N2). Implemented from the published descriptions:
 // M. Colledanchise and P. Ögren, "Behavior Trees in Robotics and AI: An Introduction", CRC Press, 2018,
-// doi:10.1201/9780429489105 (memory composites, parallel thresholds); D. Isla, "Handling Complexity in the
-// Halo 2 AI", Game Developers Conference, 2005. The interpreter is an explicit stack machine (rule 5).
+// doi:10.1201/9780429489105 (memory composites, parallel thresholds, and the reactive Sequence and Fallback of
+// its section 1.3, which re-tick from the first child every tick); D. Isla, "Handling Complexity in the Halo 2
+// AI", Game Developers Conference, 2005. The interpreter is an explicit stack machine (rule 5).
 
 [<RequireQualifiedAccess>]
 type BtStatus =
@@ -22,6 +23,8 @@ type BehaviourTree<'L> =
     | ForceFailure of BehaviourTree<'L>
     | Repeat of times: int * BehaviourTree<'L>
     | Retry of attempts: int * BehaviourTree<'L>
+    | ReactiveSequence of BehaviourTree<'L> list
+    | ReactiveFallback of BehaviourTree<'L> list
 
 module internal BtKind =
     [<Literal>]
@@ -42,6 +45,10 @@ module internal BtKind =
     let Repeat = 7
     [<Literal>]
     let Retry = 8
+    [<Literal>]
+    let ReactiveSequence = 9
+    [<Literal>]
+    let ReactiveFallback = 10
 
 [<Sealed; Class>]
 type BtProgram<'L>(kind: int[], children: int[][], p1: int[], p2: int[], leafSlot: int[], leaves: 'L[], subtreeEnd: int[]) =
@@ -125,6 +132,8 @@ module BehaviourTree =
             | BehaviourTree.Retry(attempts, c) ->
                 if attempts < 1 then invalidArg "tree" "BehaviourTree.compile: Retry needs attempts >= 1"
                 add BtKind.Retry attempts 0 [ c ]
+            | BehaviourTree.ReactiveSequence kids -> add BtKind.ReactiveSequence 0 0 kids
+            | BehaviourTree.ReactiveFallback kids -> add BtKind.ReactiveFallback 0 0 kids
         let n = kind.Count
         let kids = Array.init n (fun i -> children.[i].ToArray())
         // Preorder subtrees are contiguous: a node's subtree ends where its last child's subtree ends.
@@ -168,11 +177,13 @@ module BehaviourTree =
                 if k > root then fin.[k] <- 0
         // Finish the top frame, keeping the invariant "a finished node's whole subtree is idle". A node
         // finishes only after every descendant it ticked has finished, and a finished node is already idle, so
-        // clearing the node's own cursor suffices, except for a Parallel, which halts its unfinished (still
-        // running) children by clearing their subtrees. Cost: a tick is O(nodes it visits) plus O(size of the
-        // subtrees a finishing Parallel halts). That is not quadratic, but it is not bounded by the visited
-        // nodes alone. A full subtree clear on every finish would cost O(depth^2) on a deep tree. The
-        // reference interpreter in the tests clears whole subtrees and must agree.
+        // clearing the node's own cursor suffices, except where a running branch is abandoned without being
+        // ticked to its end. There are exactly two such places, and both halt the branch by clearing its
+        // subtree: a finishing Parallel halts its unfinished (still running) children, and a reactive
+        // composite halts the branch that was running when an earlier child takes over (below). Cost: a tick
+        // is O(nodes it visits) plus O(size of the subtrees it halts). That is not quadratic, but it is not
+        // bounded by the visited nodes alone. A full subtree clear on every finish would cost O(depth^2) on a
+        // deep tree. The reference interpreter in the tests clears whole subtrees and must agree.
         let finish (status: BtStatus) =
             let top = frames.Count - 1
             let node = frames.[top]
@@ -244,6 +255,25 @@ module BehaviourTree =
                     | BtKind.Invert -> finish (if ret = BtStatus.Success then BtStatus.Failure else BtStatus.Success)
                     | BtKind.ForceSuccess -> finish BtStatus.Success
                     | _ -> finish BtStatus.Failure
+            | BtKind.ReactiveSequence
+            | BtKind.ReactiveFallback ->
+                // Re-ticks from the first child every tick (no resume). A child that returns the proceed status
+                // passes control to the next; any other status takes over: the node returns it. The cursor is
+                // the index of the child that returned Running (so 0 when idle or when the first child runs).
+                // When an earlier child takes over, the branch that was running at the cursor is halted (its
+                // subtree cleared): it is the only non-idle child, because every child before it finished.
+                let proceed = if kind.[node] = BtKind.ReactiveSequence then BtStatus.Success else BtStatus.Failure
+                let j = if waiting then position.[top] else -1
+                if waiting && ret <> proceed then
+                    let r = cur.[node]
+                    if r > j && r < kids.Length then resetSubtree kids.[r]
+                    if ret = BtStatus.Running then cur.[node] <- j
+                    finish ret
+                elif j + 1 >= kids.Length then
+                    finish proceed
+                else
+                    position.[top] <- j + 1
+                    descend top kids.[j + 1]
             | _ ->
                 // Repeat counts successes up to P1 (a failure ends it); Retry counts failures up to P1 (a
                 // success ends it). Both re-tick the child within this tick.
