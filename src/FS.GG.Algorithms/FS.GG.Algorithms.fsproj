@@ -32,6 +32,8 @@
     <Compile Include="Graph/Scc.fs" />
     <Compile Include="Graph/UnionFind.fsi" />
     <Compile Include="Graph/UnionFind.fs" />
+    <Compile Include="Graph/TopoSort.fsi" />
+    <Compile Include="Graph/TopoSort.fs" />
     <Compile Include="Decision/Arbitration.fsi" />
     <Compile Include="Decision/Arbitration.fs" />
   </ItemGroup>

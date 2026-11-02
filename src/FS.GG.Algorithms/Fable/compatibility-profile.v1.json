@@ -61,6 +61,11 @@
       "name": "Decision.Arbitration: step, precedence (bands, per-band order, pre-emption, suspension, resumption, cancel permissions, cancel-all, release, waiting limit)",
       "grade": "LockstepExact",
       "evidence": "fixture-schema.v1 operation 9; cases 9001-9005; FsCheck invariants after every input over 400 runs and a 300-run no-starvation drain"
+    },
+    {
+      "name": "Graph.TopoSort: sort (Kahn, least-first under the caller's order) and criticalPath (CPM)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 11; cases 11001-11008; FsCheck: cycles exactly Scc.cycles, edges forward, equal to a list model for total and non-total orders, makespan equal to brute-force longest path, CPM identities; 10^5 chain under Node's default stack"
     }
   ],
   "defaultGrade": "Unclassified",

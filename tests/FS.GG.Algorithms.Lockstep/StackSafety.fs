@@ -77,6 +77,12 @@ let private arbitrationQueue () =
         drained <- drained + 1
     drained = n
 
+let private topoChain () =
+    let succ v = if v < size - 1 then [ v + 1 ] else []
+    match TopoSort.sort compare [ size - 1 .. -1 .. 0 ] succ, TopoSort.criticalPath compare [ 0 .. size - 1 ] succ (fun _ -> 1) with
+    | Ok order, Ok s -> List.head order = 0 && List.length order = size && s.Makespan = size && List.length s.CriticalPath = size
+    | _ -> false
+
 #if FABLE_COMPILER
 /// Canary (Node only): a non-tail recursion over the same 10^5 depth must overflow Node's default stack,
 /// which shows the checks above run where unbounded recursion would fail. Not run on .NET, where a stack
@@ -101,7 +107,8 @@ let run () =
           "Scc.tarjan 10^5-node chain", sccChain
           "Scc.cycles 10^5-node ring", sccRing
           "UnionFind 10^5 chained unions", unionFindChain
-          "Arbitration 10^4 queued entries drained", arbitrationQueue ]
+          "Arbitration 10^4 queued entries drained", arbitrationQueue
+          "TopoSort.sort and criticalPath 10^5-node chain", topoChain ]
     let results = checks |> List.map (fun (name, f) -> name, f ())
     let lines =
         results |> List.map (fun (name, ok) -> "stack-safety: " + name + ": " + (if ok then "ok" else "FAILED"))

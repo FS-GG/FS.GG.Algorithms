@@ -24,6 +24,10 @@ here.
 - **Union-find.** B. A. Galler and M. J. Fischer, "An improved equivalence algorithm", *Communications of the
   ACM* 7(5), 1964. R. E. Tarjan, "Efficiency of a Good But Not Linear Set Union Algorithm", *Journal of the
   ACM* 22(2), 1975, doi:10.1145/321879.321884.
+- **Topological sort.** A. B. Kahn, "Topological sorting of large networks", *Communications of the ACM*
+  5(11), 1962, doi:10.1145/368996.369025.
+- **Critical-path method.** J. E. Kelley and M. R. Walker, "Critical-path planning and scheduling", *Proc.
+  Eastern Joint Computer Conference*, 1959, doi:10.1145/1460299.1460318.
 - **Nearest-rank percentile.** NIST/SEMATECH *e-Handbook of Statistical Methods*, §7.2.6.2 (percentiles).
 - **Priority arbitration.** R. A. Brooks, "A Robust Layered Control System for a Mobile Robot", *IEEE
   Journal on Robotics and Automation* 2(1), 1986, doi:10.1109/JRA.1986.1087032.
