@@ -66,6 +66,11 @@
       "name": "Graph.TopoSort: sort (Kahn, least-first under the caller's order) and criticalPath (CPM)",
       "grade": "LockstepExact",
       "evidence": "fixture-schema.v1 operation 11; cases 11001-11008; FsCheck: cycles exactly Scc.cycles, edges forward, equal to a list model for total and non-total orders, makespan equal to brute-force longest path, CPM identities; 10^5 chain under Node's default stack"
+    },
+    {
+      "name": "Decision.BehaviourTree: compile, initial, tick, tickTraced (memory composites, parallel thresholds, decorators, repeat, retry, running-state resumption, blackboard threading)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 12; cases 12001-12012; FsCheck equality with a recursive reference interpreter over 8 ticks, fail-fast and succeed-fast, tick idempotence with constant leaves, idle after finishing; 10^5 deep and wide trees under Node's default stack"
     }
   ],
   "defaultGrade": "Unclassified",

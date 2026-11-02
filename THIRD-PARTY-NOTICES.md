@@ -28,6 +28,9 @@ here.
   5(11), 1962, doi:10.1145/368996.369025.
 - **Critical-path method.** J. E. Kelley and M. R. Walker, "Critical-path planning and scheduling", *Proc.
   Eastern Joint Computer Conference*, 1959, doi:10.1145/1460299.1460318.
+- **Behaviour trees.** M. Colledanchise and P. Ögren, *Behavior Trees in Robotics and AI: An Introduction*, CRC
+  Press, 2018, doi:10.1201/9780429489105. D. Isla, "Handling Complexity in the Halo 2 AI", Game Developers
+  Conference, 2005. Summarised, not copied.
 - **Nearest-rank percentile.** NIST/SEMATECH *e-Handbook of Statistical Methods*, §7.2.6.2 (percentiles).
 - **Priority arbitration.** R. A. Brooks, "A Robust Layered Control System for a Mobile Robot", *IEEE
   Journal on Robotics and Automation* 2(1), 1986, doi:10.1109/JRA.1986.1087032.

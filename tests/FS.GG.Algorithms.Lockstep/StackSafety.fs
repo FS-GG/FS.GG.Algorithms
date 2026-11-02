@@ -83,6 +83,16 @@ let private topoChain () =
     | Ok order, Ok s -> List.head order = 0 && List.length order = size && s.Makespan = size && List.length s.CriticalPath = size
     | _ -> false
 
+let private behaviourTreeDeep () =
+    let mutable deep = BehaviourTree.Leaf 0
+    for _ in 1..size do
+        deep <- BehaviourTree.Invert deep
+    let program = BehaviourTree.compile deep
+    let s, _, () = BehaviourTree.tick program (fun _ () -> BtStatus.Success, ()) (BehaviourTree.initial program) ()
+    let wide = BehaviourTree.compile (BehaviourTree.Selector(List.replicate size (BehaviourTree.Leaf 0)))
+    let s2, _, () = BehaviourTree.tick wide (fun _ () -> BtStatus.Failure, ()) (BehaviourTree.initial wide) ()
+    s = BtStatus.Success && program.NodeCount = size + 1 && s2 = BtStatus.Failure
+
 #if FABLE_COMPILER
 /// Canary (Node only): a non-tail recursion over the same 10^5 depth must overflow Node's default stack,
 /// which shows the checks above run where unbounded recursion would fail. Not run on .NET, where a stack
@@ -108,7 +118,8 @@ let run () =
           "Scc.cycles 10^5-node ring", sccRing
           "UnionFind 10^5 chained unions", unionFindChain
           "Arbitration 10^4 queued entries drained", arbitrationQueue
-          "TopoSort.sort and criticalPath 10^5-node chain", topoChain ]
+          "TopoSort.sort and criticalPath 10^5-node chain", topoChain
+          "BehaviourTree 10^5 levels deep and 10^5 wide", behaviourTreeDeep ]
     let results = checks |> List.map (fun (name, f) -> name, f ())
     let lines =
         results |> List.map (fun (name, ok) -> "stack-safety: " + name + ": " + (if ok then "ok" else "FAILED"))

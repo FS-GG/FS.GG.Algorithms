@@ -20,6 +20,7 @@
     <Compile Include="UnionFindTests.fs" />
     <Compile Include="TopoSortTests.fs" />
     <Compile Include="ArbitrationTests.fs" />
+    <Compile Include="BehaviourTreeTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

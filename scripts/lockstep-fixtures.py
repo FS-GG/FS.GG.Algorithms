@@ -404,11 +404,86 @@ def topo_cases():
     return cases
 
 
+def bt_encode(tree, w):
+    kind = tree[0]
+    w.u8(kind)
+    if kind == 0:
+        w.i32(tree[1])
+    elif kind in (1, 2):
+        w.u32(len(tree[1]))
+        for c in tree[1]:
+            bt_encode(c, w)
+    elif kind == 3:
+        w.i32(tree[1]).i32(tree[2]).u32(len(tree[3]))
+        for c in tree[3]:
+            bt_encode(c, w)
+    elif kind in (4, 5, 6):
+        bt_encode(tree[1], w)
+    else:
+        w.i32(tree[1])
+        bt_encode(tree[2], w)
+
+
+def bt_random(rng, depth):
+    r = rng.below(12)
+    if depth == 0 or r < 3:
+        return (0, rng.below(6))
+    if r < 9:
+        kind = [1, 1, 2, 2, 3, 4][r - 3]
+        n = rng.below(4) + (1 if kind == 3 else 0)
+        kids = [bt_random(rng, depth - 1) for _ in range(n)]
+        if kind == 3:
+            return (3, 1 + rng.below(n), 1 + rng.below(n), kids)
+        if kind == 4:
+            return (4, bt_random(rng, depth - 1))
+        return (kind, kids)
+    if r == 9:
+        return (5 + rng.below(2), bt_random(rng, depth - 1))
+    return (7 + rng.below(2), 1 + rng.below(3), bt_random(rng, depth - 1))
+
+
+def bt_cases():
+    def encode(tree, scripts, ticks):
+        w = W()
+        bt_encode(tree, w)
+        w.u32(len(scripts))
+        for sc in scripts:
+            w.u32(len(sc))
+            for x in sc:
+                w.u8(x)
+        w.u32(ticks)
+        return w.b
+
+    S, F, R = 0, 1, 2
+    six = lambda *xs: list(xs) + [[S]] * (6 - len(xs))
+    cases = [
+        # resumption: check, walk (running twice), open
+        (12001, 12, encode((1, [(0, 0), (0, 1), (0, 2)]), six([S], [R, R, S], [S]), 4)),
+        # selector succeeds fast; sequence fails fast
+        (12002, 12, encode((2, [(0, 0), (0, 1), (0, 2)]), six([F], [S], [S]), 2)),
+        (12003, 12, encode((1, [(0, 0), (0, 1), (0, 2)]), six([S], [F], [S]), 2)),
+        # parallel halts a running branch
+        (12004, 12, encode((3, 1, 2, [(0, 0), (1, [(0, 1), (0, 2)])]), six([R, S], [S], [R]), 3)),
+        # decorators, repeat and retry
+        (12005, 12, encode((1, [(4, (0, 0)), (5, (0, 1)), (6, (0, 2))]), six([F], [F], [S]), 2)),
+        (12006, 12, encode((7, 3, (0, 0)), six([S, S, R, S]), 4)),
+        (12007, 12, encode((8, 3, (0, 0)), six([F, F, R, F, S]), 4)),
+        # empty composites
+        (12008, 12, encode((2, [(1, []), (2, [])]), six(), 1)),
+    ]
+    for k, seed in enumerate([121, 122, 123, 124]):
+        rng = Lcg(seed)
+        tree = bt_random(rng, 4)
+        scripts = [[rng.below(3) for _ in range(1 + rng.below(4))] for _ in range(6)]
+        cases.append((12009 + k, 12, encode(tree, scripts, 8)))
+    return cases
+
+
 def all_cases():
     # Order is append-only: PR 1's cases (operations 1-5 and the operation 10 sweep) stay a byte-identical prefix.
     return (heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases()
             + sweep_cases() + scc_cases() + union_find_cases() + percentile_cases() + arbitration_cases()
-            + topo_cases())
+            + topo_cases() + bt_cases())
 
 
 def encode_cases(cases) -> bytes:
@@ -727,6 +802,102 @@ def py_topo(nodes, table, durations):
     return (order, makespan, path, acts), None
 
 
+def bt_decode(r):
+    kind = r.u8()
+    if kind == 0:
+        return {"kind": 0, "leaf": r.i32(), "kids": []}
+    if kind in (1, 2):
+        return {"kind": kind, "kids": [bt_decode(r) for _ in range(r.u32())]}
+    if kind == 3:
+        sa, fa = r.i32(), r.i32()
+        return {"kind": 3, "sa": sa, "fa": fa, "kids": [bt_decode(r) for _ in range(r.u32())]}
+    if kind in (4, 5, 6):
+        return {"kind": kind, "kids": [bt_decode(r)]}
+    n = r.i32()
+    return {"kind": kind, "n": n, "kids": [bt_decode(r)]}
+
+
+def bt_number(node, start):
+    """Preorder indices and subtree ends, by the oracle's own walk."""
+    node["index"] = start
+    nxt = start + 1
+    for c in node["kids"]:
+        nxt = bt_number(c, nxt)
+    node["end"] = nxt
+    return nxt
+
+
+def py_bt_tick(root, cursor, fin, script, calls, trace):
+    """The oracle's recursive interpreter of the documented BehaviourTree semantics."""
+    def clear(t):
+        for k in range(t["index"], t["end"]):
+            cursor[k] = 0
+            if k > t["index"]:
+                fin[k] = 0
+
+    def done(t, s):
+        if s != 2:
+            clear(t)
+        return s
+
+    def ev(t):
+        k, i = t["kids"], t["index"]
+        kind = t["kind"]
+        if kind == 0:
+            l = t["leaf"]
+            sc = script[l]
+            s = sc[calls[l] % len(sc)]
+            calls[l] += 1
+            trace.append(i)
+            return done(t, s)
+        if kind in (1, 2):
+            go = 0 if kind == 1 else 1
+            while True:
+                c = cursor[i]
+                if c >= len(k):
+                    return done(t, 0 if kind == 1 else 1)
+                s = ev(k[c])
+                if s == 2:
+                    return 2
+                if s == go:
+                    cursor[i] = c + 1
+                else:
+                    return done(t, s)
+        if kind == 3:
+            for c in k:
+                if fin[c["index"]] == 0:
+                    s = ev(c)
+                    if s != 2:
+                        fin[c["index"]] = 1 if s == 0 else 2
+            ns = sum(1 for c in k if fin[c["index"]] == 1)
+            nf = sum(1 for c in k if fin[c["index"]] == 2)
+            if ns >= t["sa"]:
+                return done(t, 0)
+            if nf >= t["fa"]:
+                return done(t, 1)
+            if ns + nf == len(k):
+                return done(t, 1)
+            return 2
+        if kind in (4, 5, 6):
+            s = ev(k[0])
+            if s == 2:
+                return 2
+            return done(t, {4: 1 - s, 5: 0, 6: 1}[kind])
+        counted = 0 if kind == 7 else 1
+        while True:
+            s = ev(k[0])
+            if s == 2:
+                return 2
+            if s == counted:
+                cursor[i] += 1
+                if cursor[i] >= t["n"]:
+                    return done(t, counted)
+            else:
+                return done(t, s)
+
+    return ev(root)
+
+
 def oracle_payload(op: int, r: R) -> W:
     w = W()
     if op == 1:
@@ -953,6 +1124,25 @@ def oracle_payload(op: int, r: R) -> W:
                 w.i32(x)
             for a in acts:
                 for x in a:
+                    w.i32(x)
+    elif op == 12:
+        root = bt_decode(r)
+        n = bt_number(root, 0)
+        script = [[r.u8() for _ in range(r.u32())] for _ in range(r.u32())]
+        ticks = r.u32()
+        cursor, fin, calls = [0] * n, [0] * n, [0] * len(script)
+        w.u32(ticks)
+        for _ in range(ticks):
+            trace = []
+            s = py_bt_tick(root, cursor, fin, script, calls, trace)
+            w.u8(s).u32(len(trace))
+            for x in trace:
+                w.i32(x)
+            for c in calls:
+                w.i32(c)
+            for arr in (cursor, fin):
+                w.u32(len(arr))
+                for x in arr:
                     w.i32(x)
     else:
         raise ValueError(op)

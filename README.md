@@ -21,6 +21,7 @@ This repository also owns the `fs-gg-algorithms` knowledge pack, delivered under
 | `FS.GG.Algorithms.Graph` | `UnionFind` (smallest-member representative, `partition` by a conflict predicate) | `LockstepExact` | BFS components |
 | `FS.GG.Algorithms.Graph` | `TopoSort` (Kahn, least-first under a caller order; critical-path method) | `LockstepExact` | Tarjan cycles; a list model; brute-force longest path |
 | `FS.GG.Algorithms.Decision` | `Arbitration` (priority bands, pre-emption, suspend and resume) | `LockstepExact` | invariants after every input; no-starvation drain; a Python model |
+| `FS.GG.Algorithms.Decision` | `BehaviourTree` (a pure tick reducer: memory composites, parallel, decorators, blackboard) | `LockstepExact` | a recursive reference interpreter; fail-fast and idempotence properties |
 
 The grades are recorded in
 [`src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json`](src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json).

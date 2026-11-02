@@ -465,6 +465,68 @@ let topoSort (r: Reader) (w: Writer) =
                 w.I32 a.LatestFinish
                 w.I32 a.Slack
 
+/// Decodes a behaviour tree in preorder: u8 kind (0 leaf i32 id | 1 sequence | 2 selector: u32 n children |
+/// 3 parallel: i32 successAt, i32 failureAt, u32 n children | 4 invert, 5 forceSuccess, 6 forceFailure: child |
+/// 7 repeat, 8 retry: i32 count, child). Fixture trees are shallow, so the decoder may recurse.
+let rec private decodeTree (r: Reader) : BehaviourTree<int> =
+    match r.U8() with
+    | 0 -> BehaviourTree.Leaf(r.I32())
+    | 1 -> BehaviourTree.Sequence(List.init (r.U32()) (fun _ -> decodeTree r))
+    | 2 -> BehaviourTree.Selector(List.init (r.U32()) (fun _ -> decodeTree r))
+    | 3 ->
+        let sa = r.I32()
+        let fa = r.I32()
+        BehaviourTree.Parallel(sa, fa, List.init (r.U32()) (fun _ -> decodeTree r))
+    | 4 -> BehaviourTree.Invert(decodeTree r)
+    | 5 -> BehaviourTree.ForceSuccess(decodeTree r)
+    | 6 -> BehaviourTree.ForceFailure(decodeTree r)
+    | 7 ->
+        let n = r.I32()
+        BehaviourTree.Repeat(n, decodeTree r)
+    | _ ->
+        let n = r.I32()
+        BehaviourTree.Retry(n, decodeTree r)
+
+/// Operation 12: BehaviourTree ticks. Input: the tree, u32 leafCount and per leaf id a list<u8> status script
+/// (0 success, 1 failure, 2 running), cycled by that leaf's own call count; u32 ticks. The blackboard is the
+/// immutable per-leaf call counts. Output: u32 ticks, then per tick u8 status, list<i32> trace (preorder),
+/// leafCount i32 call counts, list<i32> cursors and list<i32> finished.
+let behaviourTree (r: Reader) (w: Writer) =
+    let program = BehaviourTree.compile (decodeTree r)
+    let leafCount = r.U32()
+    let scripts = Array.init leafCount (fun _ -> Array.init (r.U32()) (fun _ -> r.U8()))
+    let ticks = r.U32()
+    let code (s: BtStatus) =
+        match s with
+        | BtStatus.Success -> 0
+        | BtStatus.Failure -> 1
+        | BtStatus.Running -> 2
+    let leaf (l: int) (calls: Map<int, int>) =
+        let n = calls.TryFind l |> Option.defaultValue 0
+        let script = scripts.[l]
+        let s =
+            match script.[n % script.Length] with
+            | 0 -> BtStatus.Success
+            | 1 -> BtStatus.Failure
+            | _ -> BtStatus.Running
+        s, calls.Add(l, n + 1)
+    let writeList (l: int list) =
+        w.U32(List.length l)
+        List.iter w.I32 l
+    let mutable state = BehaviourTree.initial program
+    let mutable calls = Map.empty
+    w.U32 ticks
+    for _ in 1..ticks do
+        let s, next, bb, trace = BehaviourTree.tickTraced program leaf state calls
+        state <- next
+        calls <- bb
+        w.U8(code s)
+        writeList trace
+        for l in 0 .. leafCount - 1 do
+            w.I32(calls.TryFind l |> Option.defaultValue 0)
+        writeList state.Cursors
+        writeList state.Finished
+
 /// Runs one case and returns its canonical record:
 /// u32 recordByteCount (bytes after this field), u32 caseId, u16 operationId, u16 outcomeTag, payload.
 let runCase (caseId: int) (operation: int) (payload: int[]) =
@@ -480,6 +542,7 @@ let runCase (caseId: int) (operation: int) (payload: int[]) =
             | 5 -> xoshiro r body
             | 10 -> fixedSweep r body
             | 11 -> topoSort r body
+            | 12 -> behaviourTree r body
             | 6 -> scc r body
             | 7 -> unionFind r body
             | 8 -> percentile r body
