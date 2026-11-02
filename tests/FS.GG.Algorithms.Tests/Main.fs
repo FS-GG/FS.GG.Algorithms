@@ -6,5 +6,12 @@ open Expecto
 let main argv =
     testList
         "FS.GG.Algorithms"
-        [ HeapTests.tests; FixedTests.tests; XoshiroTests.tests; BestFirstTests.tests ]
+        [ HeapTests.tests
+          FixedTests.tests
+          XoshiroTests.tests
+          BestFirstTests.tests
+          PercentileTests.tests
+          SccTests.tests
+          UnionFindTests.tests
+          ArbitrationTests.tests ]
     |> runTestsWithCLIArgs [] argv

@@ -21,8 +21,9 @@ const ITERATIONS = smoke ? 3 : 30;
 
 const W = await import(pathToFileURL(join(compiled, "shared", "Workloads.js")).href);
 
-// Nearest-rank percentile: the value at rank ceil(p/100 * n) of the sorted samples (1-based).
-const nearestRank = (sorted, p) => sorted[Math.max(1, Math.ceil((p / 100) * sorted.length)) - 1];
+// Nearest-rank percentile from the library itself (FS.GG.Algorithms.Numerics.Percentile, exact integer rank),
+// compiled by Fable with the workloads.
+const nearestRank = (sorted, p) => W.nearestRank(p, sorted);
 
 // The F# list of (id, sizes, prepare) compiles to a Fable list; iterate it through its JS iterator.
 const results = [];

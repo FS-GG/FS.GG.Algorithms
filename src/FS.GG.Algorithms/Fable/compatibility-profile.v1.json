@@ -41,6 +41,26 @@
       "name": "Random.Xoshiro128: nextFloat",
       "grade": "Portable",
       "evidence": "documented contract: the high 24 bits of one draw divided by 2^24, exact in IEEE doubles"
+    },
+    {
+      "name": "Numerics.Percentile: rank, ofSorted, percent (exact integer nearest rank)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 8; cases 8001-8002; exhaustive check over count 1..300 and every fraction with denominator <= 100; FsCheck against BigInteger"
+    },
+    {
+      "name": "Graph.Scc: tarjan, cycles, componentOf (iterative)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 6; cases 6001-6008; FsCheck equality with a recursive Tarjan and with the reachability closure; 10^5 chain and ring under Node's default stack"
+    },
+    {
+      "name": "Graph.UnionFind: create, representative (smallest member), union, connected, count, sets, partition",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 7; cases 7001-7005; FsCheck against BFS components; 10^5 chained unions under Node"
+    },
+    {
+      "name": "Decision.Arbitration: step, precedence (bands, per-band order, pre-emption, suspension, resumption, cancel permissions, cancel-all, release, waiting limit)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 9; cases 9001-9005; FsCheck invariants after every input over 400 runs and a 300-run no-starvation drain"
     }
   ],
   "defaultGrade": "Unclassified",

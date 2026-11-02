@@ -8,7 +8,7 @@ The library depends on `FSharp.Core` only, and every module compiles under Fable
 This repository also owns the `fs-gg-algorithms` knowledge pack, delivered under ALGO-01.3
 ([.github#5225](https://github.com/FS-GG/.github/issues/5225)).
 
-## What is here (tranche 1, foundations)
+## What is here (tranche 1: foundations and harvest)
 
 | Namespace | Surface | Grade | Oracle |
 |---|---|---|---|
@@ -16,6 +16,10 @@ This repository also owns the `fs-gg-algorithms` knowledge pack, delivered under
 | `FS.GG.Algorithms.Numerics` | `Fixed` (Q16.16: saturating, no `int64`) | `LockstepExact` (float conversions `Portable`) | exact `BigInteger` arithmetic |
 | `FS.GG.Algorithms.Graph` | `BestFirst` (Dijkstra, A*, distances) on the indexed heap | `LockstepExact` for integer costs | BFS, Bellman-Ford, exhaustive enumeration |
 | `FS.GG.Algorithms.Random` | `Xoshiro128` (xoshiro128\*\*, seed, split, jump) | `LockstepExact` (`nextFloat` `Portable`) | published reference vector; independent Python implementation |
+| `FS.GG.Algorithms.Numerics` | `Percentile` (nearest rank, exact integer rank) | `LockstepExact` | exhaustive small domain; `BigInteger` |
+| `FS.GG.Algorithms.Graph` | `Scc` (iterative Tarjan: components, cycles, componentOf) | `LockstepExact` | a recursive Tarjan; reachability closure |
+| `FS.GG.Algorithms.Graph` | `UnionFind` (smallest-member representative, `partition` by a conflict predicate) | `LockstepExact` | BFS components |
+| `FS.GG.Algorithms.Decision` | `Arbitration` (priority bands, pre-emption, suspend and resume) | `LockstepExact` | invariants after every input; no-starvation drain; a Python model |
 
 The grades are recorded in
 [`src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json`](src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json).

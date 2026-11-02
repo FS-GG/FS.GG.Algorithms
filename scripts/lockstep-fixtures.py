@@ -266,8 +266,114 @@ def sweep_cases():
     return [(10001, 10, W().i32(20261102).u32(100000).b)]
 
 
+def scc_cases():
+    def encode(nodes, table):
+        w = W().u32(len(nodes))
+        for v in nodes:
+            w.i32(v)
+        w.u32(len(table))
+        for succ in table:
+            w.u32(len(succ))
+            for x in succ:
+                w.i32(x)
+        return w.b
+
+    cases = [
+        (6001, 6, encode([0, 1, 2, 3, 4], [[1], [2], [0, 3], [4], [3]])),          # a ring and a 2-cycle downstream
+        (6002, 6, encode([0, 1, 2, 3], [[1], [2], [3], []])),                     # a chain: singletons, sink first
+        (6003, 6, encode([0, 1, 2], [[0], [], [2, 1]])),                          # self-edges
+        (6004, 6, encode([2, 0, 2, 1, 7], [[1], [0], [0, 9], [], [], [], [], [0]])),  # duplicates, edge outside the set
+        (6005, 6, encode([], [])),                                                # empty
+    ]
+    for k, seed in enumerate([61, 62, 63]):
+        rng = Lcg(seed)
+        n = 12 + rng.below(9)
+        table = [[rng.below(n) for _ in range(rng.below(4))] for _ in range(n)]
+        cases.append((6006 + k, 6, encode(list(range(n)), table)))
+    return cases
+
+
+def union_find_cases():
+    def encode(n, pairs):
+        w = W().u32(n).u32(len(pairs))
+        for a, b in pairs:
+            w.i32(a).i32(b)
+        return w.b
+
+    cases = [
+        (7001, 7, encode(6, [(5, 4), (3, 4), (0, 1), (4, 3), (2, 2)])),
+        (7002, 7, encode(1, [(0, 0)])),
+        (7003, 7, encode(4, [(0, 9)])),  # out of range: refused
+    ]
+    for k, seed in enumerate([71, 72]):
+        rng = Lcg(seed)
+        n = 25
+        cases.append((7004 + k, 7, encode(n, [(rng.below(n), rng.below(n)) for _ in range(30)])))
+    return cases
+
+
+def percentile_cases():
+    w = W()
+    triples = [(7, 100, 100), (95, 100, 30), (50, 100, 4), (0, 100, 9), (100, 100, 9), (1, 3, 2_000_000_000),
+               (46339, 46340, 2_147_483_647), (99, 100, 1), (1, 46340, 46341)]
+    rng = Lcg(81)
+    for _ in range(40):
+        den = 1 + rng.below(46340)
+        triples.append((rng.below(den + 1), den, 1 + rng.below(2_000_000_000)))
+    w.u32(len(triples))
+    for t in triples:
+        w.i32(t[0]).i32(t[1]).i32(t[2])
+    samples = [rng.below(1000) - 500 for _ in range(37)]
+    w.u32(len(samples))
+    for x in samples:
+        w.i32(x)
+    ps = [0, 1, 7, 25, 50, 75, 90, 95, 99, 100]
+    w.u32(len(ps))
+    for p in ps:
+        w.i32(p)
+    return [(8001, 8, w.b), (8002, 8, W().u32(1).i32(3).i32(2).i32(5).u32(1).i32(1).u32(0).b)]  # 8002 refused
+
+
+def arbitration_cases():
+    def encode(ops):
+        w = W().u32(len(ops))
+        for op in ops:
+            w.u8(op[0])
+            if op[0] == 0:
+                w.i32(op[1]).i32(op[2]).u8(op[3])
+            elif op[0] == 1:
+                w.i32(op[1]).i32(op[2])
+            else:
+                w.i32(op[1])
+        return w.b
+
+    chain = [(0, 4, 1, 1), (0, 2, 2, 1), (0, 0, 3, 1), (3, 0), (3, 2)]
+    perms = [(0, 4, 1, 0), (0, 2, 2, 0), (1, 4, 2), (1, 3, 2), (1, 0, 1), (1, 9, 77), (0, 5, 2, 0), (2, 3), (4, 99)]
+    cases = [(9001, 9, encode(chain)), (9002, 9, encode(perms))]
+    for k, seed in enumerate([91, 92, 93]):
+        rng = Lcg(seed)
+        ops, key = [], 0
+        for _ in range(80):
+            r = rng.below(10)
+            if r < 4:
+                key += 1
+                ops.append((0, rng.below(6), key, 1 if rng.below(3) else 0))
+            elif r < 5:
+                ops.append((1, rng.below(6), 1 + rng.below(max(1, key))))
+            elif r < 6:
+                ops.append((2, rng.below(6)))
+            elif r < 7:
+                ops.append((3, rng.below(6)))
+            else:
+                ops.append((4, 1 + rng.below(max(1, key))))
+        cases.append((9003 + k, 9, encode(ops)))
+    return cases
+
+
 def all_cases():
-    return heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases() + sweep_cases()
+    # Order is append-only: PR 1's cases (operations 1-5 and the operation 10 sweep) stay a byte-identical prefix.
+    return (heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases()
+            + sweep_cases() + scc_cases() + union_find_cases() + percentile_cases() + arbitration_cases())
 
 
 def encode_cases(cases) -> bytes:
@@ -415,6 +521,128 @@ def xo_below(s: list[int], bound: int) -> int:
             return v
 
 
+def py_tarjan(nodes, table):
+    """Recursive Tarjan in Python (independent oracle): vertices are the distinct nodes in first-occurrence order."""
+    sys.setrecursionlimit(10000)
+    verts = []
+    for v in nodes:
+        if v not in verts:
+            verts.append(v)
+    pos = {v: i for i, v in enumerate(verts)}
+    succ = [[pos[w] for w in (table[v] if 0 <= v < len(table) else []) if w in pos] for v in verts]
+    index, low, on, stack, out, counter = {}, {}, set(), [], [], [0]
+
+    def strong(v):
+        index[v] = low[v] = counter[0]
+        counter[0] += 1
+        stack.append(v)
+        on.add(v)
+        for w in succ[v]:
+            if w not in index:
+                strong(w)
+                low[v] = min(low[v], low[w])
+            elif w in on:
+                low[v] = min(low[v], index[w])
+        if low[v] == index[v]:
+            comp = []
+            while True:
+                w = stack.pop()
+                on.discard(w)
+                comp.insert(0, w)
+                if w == v:
+                    break
+            out.append(comp)
+
+    for v in range(len(verts)):
+        if v not in index:
+            strong(v)
+    comps = [[verts[i] for i in c] for c in out]
+    cycles = [[verts[i] for i in c] for c in out if len(c) > 1 or c[0] in succ[c[0]]]
+    cid = {}
+    for k, c in enumerate(out):
+        for i in c:
+            cid[verts[i]] = k
+    return comps, cycles, [cid[v] for v in nodes]
+
+
+def py_rank(num, den, n):
+    if n < 1 or not (1 <= den <= 46340) or not (0 <= num <= den):
+        raise Refused
+    return max(1, -(-num * n // den))
+
+
+ARB_BAND = lambda owner: 3 - owner // 2
+
+
+def py_arbitrate(ops):
+    """An independent Python model of the arbitration rules (fixture policy of operation 9)."""
+    entries, seq, out = [], 1, []
+
+    def key_of(e):
+        return (-e["band"], -e["seq"] if e["band"] == 3 else e["seq"])
+
+    def settle():
+        cur = next((e for e in entries if e["status"] == 1), None)
+        if not entries:
+            return []
+        win = min(entries, key=key_of)
+        if cur is not None and cur["key"] == win["key"]:
+            return []
+        ds = []
+        if cur is not None:
+            ds.append(("pre", cur["key"], win["key"]))
+            cur["status"] = 2
+        ds.append(("act", win["key"], win["started"]))
+        win["status"], win["started"] = 1, True
+        return ds
+
+    def end(pick, code, by):
+        nonlocal entries
+        gone = [e for e in entries if pick(e)]
+        entries = [e for e in entries if not pick(e)]
+        return [("end", e["key"], code, by) for e in gone]
+
+    for op in ops:
+        ds = []
+        if op[0] == 0:
+            _, owner, key, replace = op
+            if any(e["key"] == key for e in entries):
+                ds = [("ref", 0, key)]
+            else:
+                band = ARB_BAND(owner)
+                saved = [dict(e) for e in entries]
+                ended = end(lambda e: e["owner"] == owner, 2, -1) if replace else []
+                waiting = sum(1 for e in entries if e["band"] == band and e["status"] != 1)
+                if waiting >= (16 if band == 3 else 6):
+                    entries = saved
+                    ds = [("ref", 3, -1)]
+                else:
+                    entries.append({"key": key, "owner": owner, "band": band, "seq": seq, "status": 0, "started": False})
+                    seq += 1
+                    ds = [("acc", key)] + ended + settle()
+        elif op[0] == 1:
+            _, by, key = op
+            e = next((e for e in entries if e["key"] == key), None)
+            if e is None:
+                ds = [("ref", 1, key)]
+            elif e["owner"] != by and ARB_BAND(by) <= e["band"]:
+                ds = [("ref", 2, key)]
+            else:
+                ds = end(lambda x: x["key"] == key, 1, by) + settle()
+        elif op[0] == 2:
+            by = op[1]
+            ended = end(lambda e: e["band"] <= ARB_BAND(by), 4, by)
+            ds = [("all", by, len(ended))] + ended + settle()
+        elif op[0] == 3:
+            ds = end(lambda e: e["owner"] == op[1], 3, -1) + settle()
+        else:
+            act = next((e for e in entries if e["status"] == 1), None)
+            if act is not None and act["key"] == op[1]:
+                ds = end(lambda e: e["key"] == op[1], 0, -1) + settle()
+        out.append(ds)
+    return out, entries
+
+
 def oracle_payload(op: int, r: R) -> W:
     w = W()
     if op == 1:
@@ -540,6 +768,86 @@ def oracle_payload(op: int, r: R) -> W:
         w.u32(pairs)
         for x in h:
             w.i32(x)
+    elif op == 6:
+        nodes = [r.i32() for _ in range(r.u32())]
+        table = [[r.i32() for _ in range(r.u32())] for _ in range(r.u32())]
+        comps, cycles, ids = py_tarjan(nodes, table)
+        for ls in (comps, cycles):
+            w.u32(len(ls))
+            for l in ls:
+                w.u32(len(l))
+                for x in l:
+                    w.i32(x)
+        w.u32(len(ids))
+        for x in ids:
+            w.i32(x)
+    elif op == 7:
+        n, m = r.u32(), r.u32()
+        pairs = [(r.i32(), r.i32()) for _ in range(m)]
+        label = list(range(n))
+        w.u32(m)
+        for a, b in pairs:
+            if not (0 <= a < n and 0 <= b < n):
+                raise Refused
+            la, lb = label[a], label[b]
+            w.u8(1 if la != lb else 0)
+            if la != lb:
+                lo, hi = min(la, lb), max(la, lb)
+                label = [lo if x == hi else x for x in label]
+        for i in range(n):
+            w.i32(label[i])
+        groups = sorted({x for x in label})
+        w.u32(len(groups))
+        w.u32(len(groups))
+        for g in groups:
+            members = [i for i in range(n) if label[i] == g]
+            w.u32(len(members))
+            for x in members:
+                w.i32(x)
+    elif op == 8:
+        k = r.u32()
+        w.u32(k)
+        for _ in range(k):
+            num, den, n = r.i32(), r.i32(), r.i32()
+            w.i32(py_rank(num, den, n))
+        samples = sorted(r.i32() for _ in range(r.u32()))
+        ps = r.u32()
+        w.u32(ps)
+        for _ in range(ps):
+            p = r.i32()
+            if not samples or not (0 <= p <= 100):
+                raise Refused
+            w.i32(samples[py_rank(p, 100, len(samples)) - 1])
+    elif op == 9:
+        ops = []
+        for _ in range(r.u32()):
+            tag = r.u8()
+            if tag == 0:
+                ops.append((0, r.i32(), r.i32(), r.u8()))
+            elif tag == 1:
+                ops.append((1, r.i32(), r.i32()))
+            else:
+                ops.append((tag, r.i32()))
+        steps, final = py_arbitrate(ops)
+        w.u32(len(steps))
+        for ds in steps:
+            w.u32(len(ds))
+            for d in ds:
+                if d[0] == "acc":
+                    w.u8(0).i32(d[1])
+                elif d[0] == "ref":
+                    w.u8(1).u8(d[1]).i32(d[2])
+                elif d[0] == "act":
+                    w.u8(2).i32(d[1]).u8(1 if d[2] else 0)
+                elif d[0] == "pre":
+                    w.u8(3).i32(d[1]).i32(d[2])
+                elif d[0] == "end":
+                    w.u8(4).i32(d[1]).u8(d[2]).i32(d[3])
+                else:
+                    w.u8(5).i32(d[1]).u32(d[2])
+        w.u32(len(final))
+        for e in final:
+            w.i32(e["key"]).i32(e["owner"]).i32(e["band"]).i32(e["seq"]).u8(e["status"]).u8(1 if e["started"] else 0)
     else:
         raise ValueError(op)
     return w

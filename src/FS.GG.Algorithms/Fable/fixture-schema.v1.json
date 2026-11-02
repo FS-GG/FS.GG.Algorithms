@@ -41,6 +41,30 @@
       "payload": "0: 4 i32 state, n i32 outputs; 1: n outputs; 2: parent state, n outputs, child state, n outputs; 3: n values, 4 i32 final state; 4: jumped state, n outputs; 5: n values"
     },
     {
+      "id": 6,
+      "operation": "Scc.tarjan, Scc.cycles, Scc.componentOf",
+      "input": "list<i32> nodes (duplicates allowed), then u32 vertexCount and per vertex list<i32> successors (vertices outside the node list ignored)",
+      "payload": "list<list<i32>> components, list<list<i32>> cycles, list<i32> componentOf"
+    },
+    {
+      "id": 7,
+      "operation": "UnionFind",
+      "input": "u32 n, u32 m, m pairs (i32 a, i32 b)",
+      "payload": "u32 m and m u8 merged flags, n i32 representatives, u32 count, list<list<i32>> sets"
+    },
+    {
+      "id": 8,
+      "operation": "Percentile.rank and Percentile.percent",
+      "input": "u32 k triples (i32 numerator, i32 denominator, i32 count), list<i32> samples, u32 p then p i32 percents",
+      "payload": "u32 k and k i32 ranks, u32 p and p i32 values"
+    },
+    {
+      "id": 9,
+      "operation": "Arbitration.step under the fixture policy (owners 0..5, band = 3 - owner/2; band 3 newest-first, others earliest-first; at most 16 waiting in band 3, 6 elsewhere)",
+      "input": "u32 n inputs; u8 0 submit (i32 owner, i32 key, u8 replace) | 1 cancel (i32 by, i32 key) | 2 cancelAll (i32 by) | 3 release (i32 owner) | 4 finished (i32 key)",
+      "payload": "u32 n, then per input a list of decisions: u8 0 accepted (i32 key) | 1 refused (u8 0 duplicate, 1 unknown, 2 not permitted, 3 queue full; i32 key or -1) | 2 activated (i32 key, u8 resumed) | 3 preempted (i32 key, i32 by) | 4 ended (i32 key, u8 reason 0 finished, 1 cancelled, 2 replaced, 3 released, 4 cancelled-all; i32 by or -1) | 5 cancelled-all (i32 by, u32 count); then list of live entries (i32 key, owner, band, seq, u8 status 0 pending 1 active 2 suspended, u8 started)"
+    },
+    {
       "id": 10,
       "operation": "Fixed (Q16.16) fixed-seed sweep",
       "input": "i32 seed, u32 pairs; per pair four xoshiro128** draws x, y, z, t give a = x >>> (y & 15) and b = z >>> (t & 15) (arithmetic shifts)",
@@ -48,11 +72,11 @@
     }
   ],
   "inputs": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/cases.bin",
-  "inputsSha256": "fe2cd77db4164fce6f43d2d6f3ceb447f651ed22c3dbbfa0209d420d15f41c87",
+  "inputsSha256": "8a70df4e57462b59ac5abf5f5e4cf04a1425d9fe0cca77cdeb09ff9e71e8a889",
   "inputsGenerator": "scripts/lockstep-fixtures.py generate (fixed constants and a 32-bit LCG; no clock, network or host randomness)",
   "oracle": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/expected.bin",
-  "oracleSha256": "59fd1eac117f80cce5ef205a4cf01e56d8f576d276bc63c53e10c34e4e74ea93",
-  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5 and 10 (the 10^5-pair sweep recomputed exactly); optimal cost, path validity and settle order for operation 4",
+  "oracleSha256": "b78cb1c05c9208f7de257ad1ec27806a31f0f6c233725acdb9252ef0682f7815",
+  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; optimal cost, path validity and settle order for 4",
   "outcomeTags": {
     "0": "operation completed normally",
     "1": "operation refused its input (an exception); the payload is empty"

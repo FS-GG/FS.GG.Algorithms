@@ -85,10 +85,38 @@ let prepareDijkstra (side: int) : unit -> int =
     let goal = side - 1, side - 1
     fun () -> (BestFirst.dijkstra neighbours tieBreak (fun c -> c = goal) (0, 0)).Expanded
 
+/// A seeded random digraph on 0..n-1 with out-degree 0..3 per vertex.
+let private digraph (n: int) =
+    let degrees = ints n 4
+    let targets = ints (3 * n) n
+    Array.init n (fun v -> List.init degrees.[v] (fun k -> targets.[3 * v + k]))
+
+/// graph/iterative-tarjan-scc on a seeded random digraph of n vertices. Work: the number of components.
+let prepareScc (n: int) : unit -> int =
+    let succ = digraph n
+    let nodes = [ 0 .. n - 1 ]
+    fun () -> List.length (Scc.tarjan nodes (fun v -> succ.[v]))
+
+/// graph/union-find: n seeded unions over n elements. Work: the number of unions that merged two sets.
+let prepareUnionFind (n: int) : unit -> int =
+    let pairs = ints (2 * n) n
+    fun () ->
+        let uf = UnionFind.create n
+        let mutable merged = 0
+        for i in 0 .. n - 1 do
+            if UnionFind.union pairs.[2 * i] pairs.[2 * i + 1] uf then merged <- merged + 1
+        merged
+
+/// The nearest-rank sample of ascending timings, for the Node harness's summaries (harvest 20: the library's
+/// own percentile, exact integer rank).
+let nearestRank (percent: int) (sortedSamples: float[]) = Percentile.ofSorted percent 100 sortedSamples
+
 /// The declared kernels: id, sizes (three each, ADR-0098 §4.3), and the preparation.
 let kernels: (string * int list * (int -> unit -> int)) list =
     [ "collections/binary-heap/push-pop", [ 1000; 10000; 100000 ], prepareHeap
       "numerics/fixed-q16-16/mul-div-sqrt", [ 1000; 10000; 100000 ], prepareFixed
       "random/xoshiro128/next", [ 1000; 10000; 100000 ], prepareXoshiro
       "graph/best-first-search/astar-grid", [ 32; 128; 512 ], prepareAstar
-      "graph/best-first-search/dijkstra-grid", [ 32; 128; 512 ], prepareDijkstra ]
+      "graph/best-first-search/dijkstra-grid", [ 32; 128; 512 ], prepareDijkstra
+      "graph/iterative-tarjan-scc/random-digraph", [ 1000; 10000; 100000 ], prepareScc
+      "graph/union-find/random-unions", [ 1000; 10000; 100000 ], prepareUnionFind ]
