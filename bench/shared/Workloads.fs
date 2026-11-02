@@ -152,6 +152,35 @@ let prepareBehaviourTree (n: int) : unit -> int =
             count <- c
         count
 
+/// decision/behaviour-tree (reactive): n ticks of a fixed priority tree, a ReactiveFallback over guarded
+/// ReactiveSequence branches and a memory patrol, whose leaves read a seeded table by their call count, so
+/// guards flip and higher-priority branches preempt and halt running ones. Work: the leaves ticked.
+let prepareReactiveBehaviourTree (n: int) : unit -> int =
+    let table = ints 4096 3
+    let leaf k = BehaviourTree.Leaf k
+    let tree =
+        BehaviourTree.ReactiveFallback
+            [ BehaviourTree.ReactiveSequence [ leaf 0; BehaviourTree.Sequence [ leaf 1; leaf 2 ] ]
+              BehaviourTree.ReactiveSequence [ leaf 3; BehaviourTree.Retry(2, leaf 4) ]
+              BehaviourTree.ReactiveSequence [ leaf 5; BehaviourTree.Repeat(2, leaf 6); leaf 7 ]
+              BehaviourTree.Sequence [ leaf 8; leaf 9; leaf 10 ] ]
+    let program = BehaviourTree.compile tree
+    let tickLeaf (_: int) (count: int) =
+        let s =
+            match table.[count &&& 4095] with
+            | 0 -> BtStatus.Success
+            | 1 -> BtStatus.Failure
+            | _ -> BtStatus.Running
+        s, count + 1
+    fun () ->
+        let mutable state = BehaviourTree.initial program
+        let mutable count = 0
+        for _ in 1..n do
+            let _, next, c = BehaviourTree.tick program tickLeaf state count
+            state <- next
+            count <- c
+        count
+
 /// spatial/kd-tree: 1000 nearest-neighbour queries against n seeded points (built once). Work: the sum of the
 /// returned points' indices modulo 2^31 (deterministic).
 let prepareKdNearest (n: int) : unit -> int =
@@ -205,5 +234,6 @@ let kernels: (string * int list * (int -> unit -> int)) list =
       "graph/union-find/random-unions", [ 1000; 10000; 100000 ], prepareUnionFind
       "graph/topological-sort-cpm/random-dag", [ 1000; 10000; 100000 ], prepareTopoCpm
       "decision/behaviour-tree/ticks", [ 1000; 10000; 100000 ], prepareBehaviourTree
+      "decision/behaviour-tree/reactive-ticks", [ 1000; 10000; 100000 ], prepareReactiveBehaviourTree
       "spatial/kd-tree/nearest-1000-queries", [ 1000; 10000; 100000 ], prepareKdNearest
       "search.grid/doors-and-planes/corner-to-corner", [ 32; 128; 512 ], prepareDoorGrid ]

@@ -469,7 +469,8 @@ let topoSort (r: Reader) (w: Writer) =
 
 /// Decodes a behaviour tree in preorder: u8 kind (0 leaf i32 id | 1 sequence | 2 selector: u32 n children |
 /// 3 parallel: i32 successAt, i32 failureAt, u32 n children | 4 invert, 5 forceSuccess, 6 forceFailure: child |
-/// 7 repeat, 8 retry: i32 count, child). Fixture trees are shallow, so the decoder may recurse.
+/// 7 repeat, 8 retry: i32 count, child | 9 reactive sequence, 10 reactive fallback: u32 n children). Fixture
+/// trees are shallow, so the decoder may recurse.
 let rec private decodeTree (r: Reader) : BehaviourTree<int> =
     match r.U8() with
     | 0 -> BehaviourTree.Leaf(r.I32())
@@ -485,9 +486,12 @@ let rec private decodeTree (r: Reader) : BehaviourTree<int> =
     | 7 ->
         let n = r.I32()
         BehaviourTree.Repeat(n, decodeTree r)
-    | _ ->
+    | 8 ->
         let n = r.I32()
         BehaviourTree.Retry(n, decodeTree r)
+    | 9 -> BehaviourTree.ReactiveSequence(List.init (r.U32()) (fun _ -> decodeTree r))
+    | 10 -> BehaviourTree.ReactiveFallback(List.init (r.U32()) (fun _ -> decodeTree r))
+    | k -> failwithf "unknown behaviour-tree kind %d" k
 
 /// Operation 12: BehaviourTree ticks. Input: the tree, u32 leafCount and per leaf id a list<u8> status script
 /// (0 success, 1 failure, 2 running), cycled by that leaf's own call count; u32 ticks. The blackboard is the

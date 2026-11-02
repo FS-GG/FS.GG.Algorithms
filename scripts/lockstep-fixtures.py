@@ -412,7 +412,7 @@ def bt_encode(tree, w):
     w.u8(kind)
     if kind == 0:
         w.i32(tree[1])
-    elif kind in (1, 2):
+    elif kind in (1, 2, 9, 10):
         w.u32(len(tree[1]))
         for c in tree[1]:
             bt_encode(c, w)
@@ -479,6 +479,72 @@ def bt_cases():
         tree = bt_random(rng, 4)
         scripts = [[rng.below(3) for _ in range(1 + rng.below(4))] for _ in range(6)]
         cases.append((12009 + k, 12, encode(tree, scripts, 8)))
+    return cases
+
+
+def bt_random_reactive(rng, depth):
+    """Random trees for the reactive cases: every kind, reactive composites (9, 10) included. A separate
+    generator, so bt_random and the cases it made stay byte-identical."""
+    r = rng.below(16)
+    if depth == 0 or r < 3:
+        return (0, rng.below(6))
+    if r < 13:
+        kind = [1, 2, 3, 4, 9, 9, 9, 10, 10, 10][r - 3]
+        if kind == 4:
+            return (4, bt_random_reactive(rng, depth - 1))
+        n = rng.below(4) + (1 if kind == 3 else 0)
+        kids = [bt_random_reactive(rng, depth - 1) for _ in range(n)]
+        if kind == 3:
+            return (3, 1 + rng.below(n), 1 + rng.below(n), kids)
+        return (kind, kids)
+    if r == 13:
+        return (5 + rng.below(2), bt_random_reactive(rng, depth - 1))
+    return (7 + rng.below(2), 1 + rng.below(3), bt_random_reactive(rng, depth - 1))
+
+
+def bt_reactive_cases():
+    """Operation 12 cases for ReactiveSequence (9) and ReactiveFallback (10), FS.GG.Algorithms#8. Appended after
+    every earlier case, so the earlier records stay a byte-identical prefix."""
+    def encode(tree, scripts, ticks):
+        w = W()
+        bt_encode(tree, w)
+        w.u32(len(scripts))
+        for sc in scripts:
+            w.u32(len(sc))
+            for x in sc:
+                w.u8(x)
+        w.u32(ticks)
+        return w.b
+
+    S, F, R = 0, 1, 2
+    six = lambda *xs: list(xs) + [[S]] * (6 - len(xs))
+    deep = (0, 2)
+    for _ in range(6):
+        deep = (9, [(0, 1), deep])
+    cases = [
+        # priority interrupt: ReactiveFallback [ReactiveSequence [danger; flee]; Sequence [walkA; walkB]]; danger
+        # appears on tick 3 and clears on tick 4: patrol is halted, then restarts at walkA
+        (12013, 12, encode((10, [(9, [(0, 0), (0, 1)]), (1, [(0, 2), (0, 3)])]), six([F, F, S, F, F], [R], [S], [R]), 6)),
+        # a failing guard aborts a running action with memory (a sequence and a repeat counter) and halts it
+        (12014, 12, encode((9, [(0, 0), (1, [(0, 1), (7, 3, (0, 2))])]), six([S, S, F, S], [S], [S, R, S, R]), 5)),
+        # a higher-priority child that RUNS also preempts
+        (12015, 12, encode((10, [(0, 0), (0, 1), (0, 2)]), six([F, F, R, F], [F, R, F], [R]), 6)),
+        # reactive composites inside a parallel, and a parallel inside a reactive composite
+        (12016, 12, encode((3, 1, 2, [(9, [(0, 0), (0, 1)]), (10, [(0, 2), (3, 2, 1, [(0, 3), (0, 4)])])]),
+                           six([S, S, F], [R, S], [F, F, S], [R, R, S], [R, F]), 6)),
+        # nested reactive composites under a memory sequence and a repeat
+        (12017, 12, encode((1, [(0, 5), (7, 2, (10, [(4, (0, 0)), (9, [(0, 1), (0, 2)])]))]),
+                           six([S, F, S, F, F], [S, S, F], [R, S, R]), 8)),
+        # empty reactive composites
+        (12018, 12, encode((2, [(10, []), (9, [])]), six(), 1)),
+        # an interrupt halts a 6-deep running reactive branch (a cursor at every level)
+        (12019, 12, encode((10, [(0, 0), deep]), six([F, F, S, F], [S], [R]), 5)),
+    ]
+    for k, seed in enumerate([131, 132, 133, 134, 135, 136, 137, 138]):
+        rng = Lcg(seed)
+        tree = bt_random_reactive(rng, 4)
+        scripts = [[rng.below(3) for _ in range(1 + rng.below(5))] for _ in range(6)]
+        cases.append((12020 + k, 12, encode(tree, scripts, 12)))
     return cases
 
 
@@ -604,7 +670,7 @@ def all_cases():
     # Order is append-only: PR 1's cases (operations 1-5 and the operation 10 sweep) stay a byte-identical prefix.
     return (heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases()
             + sweep_cases() + scc_cases() + union_find_cases() + percentile_cases() + arbitration_cases()
-            + topo_cases() + bt_cases() + door_cases() + kd_cases() + door_cost_cases())
+            + topo_cases() + bt_cases() + door_cases() + kd_cases() + door_cost_cases() + bt_reactive_cases())
 
 
 def encode_cases(cases) -> bytes:
@@ -927,7 +993,7 @@ def bt_decode(r):
     kind = r.u8()
     if kind == 0:
         return {"kind": 0, "leaf": r.i32(), "kids": []}
-    if kind in (1, 2):
+    if kind in (1, 2, 9, 10):
         return {"kind": kind, "kids": [bt_decode(r) for _ in range(r.u32())]}
     if kind == 3:
         sa, fa = r.i32(), r.i32()
@@ -1004,6 +1070,21 @@ def py_bt_tick(root, cursor, fin, script, calls, trace):
             if s == 2:
                 return 2
             return done(t, {4: 1 - s, 5: 0, 6: 1}[kind])
+        if kind in (9, 10):
+            # Reactive: always from the first child. The child that does not proceed takes over, and every
+            # child after it is abandoned, so all of them are halted (cleared).
+            go = 0 if kind == 9 else 1
+            for c_idx, c in enumerate(k):
+                s = ev(c)
+                if s == go:
+                    continue
+                for later in k[c_idx + 1:]:
+                    clear(later)
+                if s == 2:
+                    cursor[i] = c_idx
+                    return 2
+                return done(t, s)
+            return done(t, go)
         counted = 0 if kind == 7 else 1
         while True:
             s = ev(k[0])
