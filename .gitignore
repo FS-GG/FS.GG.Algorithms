@@ -1,0 +1,18 @@
+# .NET build output
+bin/
+obj/
+artifacts/
+TestResults/
+BenchmarkDotNet.Artifacts/
+
+# Fable and Node output (eng/fable-proof.sh and bench/fable write under a work directory, never here)
+node_modules/
+fable_modules/
+*.fable-out/
+
+# Tooling and editor state
+.nuget/
+.vs/
+.idea/
+*.user
+.ionide/

@@ -1,0 +1,80 @@
+name: closing-keywords
+
+# A PR title or body must not carry a closing keyword next to an issue reference, negated or not: GitHub
+# ignores the words around the keyword and closes the issue (FS-GG/.github#4730).
+#
+# The rule is the hub's own, FS-GG/.github scripts/check-closing-keywords.py, fetched at a PINNED commit
+# (not copied) so the verdict is a function of the text and that commit. FS-GG/.github is public. This job
+# reads no secret, checks out no pull request code and runs none: the title and body reach the shell only
+# through env:. HUB_SHA (job env below) is the single source for the pinned commit. Move it deliberately, by pull request, when the hub's rule changes.
+#
+# This receiver does not call the hub's kit-materialize reusable workflow (it has no coordination kit, and
+# that workflow needs the dispatch App secrets), so it carries this standalone job instead.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: closing-keywords-${{ contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event.action != 'edited' }}
+
+jobs:
+  closing-keywords:
+    name: closing-keywords
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      HUB_SHA: 8ca8f936e74452276e4b71ba55a8afe73a4bb6c1
+    steps:
+      - name: Fetch the hub's closing-keyword rule at the pinned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: FS-GG/.github
+          ref: ${{ env.HUB_SHA }}
+          path: fsgg-hub
+          persist-credentials: false
+          sparse-checkout: |
+            /scripts/
+          sparse-checkout-cone-mode: false
+
+      - name: Lint the pull request title and body
+        env:
+          EVENT_BODY: ${{ github.event.pull_request.body }}
+          EVENT_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          body="$RUNNER_TEMP/pr-body.md"
+          title="$RUNNER_TEMP/pr-title.txt"
+          case "$PR_NUMBER" in ''|*[!0-9]*) echo "::error title=closing-keywords: no verdict::the event carries no pull request number"; exit 1 ;; esac
+          # Live title and body first, so a re-run after an edit judges the edit; the event payload is the
+          # fallback, always taken as a pair.
+          if gh api "repos/$REPO/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json" 2>/dev/null \
+             && python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); open(sys.argv[2],"w").write(d["body"] or ""); open(sys.argv[3],"w").write(d["title"])' \
+                  "$RUNNER_TEMP/pr.json" "$body" "$title" 2>/dev/null; then
+            source_of_text=live
+          else
+            source_of_text=event
+            printf '%s' "$EVENT_BODY" > "$body"
+            printf '%s' "$EVENT_TITLE" > "$title"
+            echo "::warning title=closing-keywords: live title and body unreadable::falling back to the event payload"
+          fi
+          echo "closing-keywords: linting the pull request title and body (source: $source_of_text, $(wc -c < "$body") body bytes, hub $HUB_SHA)"
+          rc=0
+          out="$(python3 -I fsgg-hub/scripts/check-closing-keywords.py --body "$body" --title="$(cat "$title")" 2>&1)" || rc=$?
+          [ -z "$out" ] || printf '%s\n' "$out" | tr '\r' ' ' | sed 's/^/| /'
+          case "$rc" in
+            0) echo "closing-keywords: OK" >> "$GITHUB_STEP_SUMMARY" ;;
+            1)
+              echo "::error title=closing-keywords: closing keyword next to an issue reference::GitHub ignores 'not'. Write 'Refs #N' to link without closing."
+              exit 1 ;;
+            *)
+              echo "::error title=closing-keywords: no verdict::check-closing-keywords.py exited $rc"
+              exit 1 ;;
+          esac

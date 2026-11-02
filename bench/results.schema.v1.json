@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/FS-GG/FS.GG.Algorithms/blob/main/bench/results.schema.v1.json",
+  "title": "FS.GG.Algorithms bench baseline v1",
+  "description": "One committed baseline: bench/baselines/<host>-<yyyy-mm-dd>-<package-version>.json (ADR-0098 §4.3). Both runtimes write the same run shape, distinguished by `runtime`. FS.GG.Algorithms owns this schema; FS.GG.Game reuses it by reference. Work counts are deterministic and may gate regressions; timings are evidence, never gates.",
+  "type": "object",
+  "required": ["schema", "package", "source", "host", "recordedAt", "admission", "runs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "fsgg.algorithms.bench-results/v1" },
+    "package": {
+      "type": "object",
+      "required": ["id", "version"],
+      "additionalProperties": false,
+      "properties": { "id": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "source": {
+      "type": "object",
+      "required": ["repository", "commit", "dirty"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string" },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "dirty": { "type": "boolean" }
+      }
+    },
+    "host": {
+      "type": "object",
+      "required": ["name", "os", "nproc"],
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string" }, "os": { "type": "string" }, "cpu": { "type": "string" }, "nproc": { "type": "integer", "minimum": 1 } }
+    },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "admission": {
+      "type": "object",
+      "description": "The quiet-host probe that admitted this invocation: fdev-lane-capacity.py --max-load-per-core 0.25 (FS.GG.Game#780). A held probe waits; it is never overridden.",
+      "required": ["probe", "verdict", "observation"],
+      "additionalProperties": false,
+      "properties": {
+        "probe": { "type": "string" },
+        "verdict": { "const": "admit" },
+        "observation": { "type": "object" }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["runtime", "runtimeVersion", "protocol", "results"],
+        "additionalProperties": false,
+        "properties": {
+          "runtime": { "enum": ["dotnet", "node"] },
+          "runtimeVersion": { "type": "string" },
+          "protocol": { "type": "object" },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kernel", "size", "workCount", "medianNs", "p95Ns"],
+              "additionalProperties": false,
+              "properties": {
+                "kernel": { "type": "string", "description": "<entry id>/<workload>, for example graph/best-first-search/astar-grid" },
+                "size": { "type": "integer", "minimum": 1 },
+                "workCount": { "type": "integer", "minimum": 0 },
+                "medianNs": { "type": "number", "minimum": 0 },
+                "p95Ns": { "type": "number", "minimum": 0 },
+                "meanNs": { "type": "number", "minimum": 0 },
+                "allocatedBytesPerOp": { "type": "number", "minimum": 0 },
+                "samples": { "type": "integer", "minimum": 1 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "profileId": "fs-gg-algorithms-fable-lockstep-v1",
+  "status": "source-contract",
+  "packageId": "FS.GG.Algorithms",
+  "target": "javascript",
+  "surfaces": [
+    {
+      "name": "Collections.BinaryHeap: ordering contract (caller comparison, then FIFO among equals) and every operation",
+      "grade": "LockstepExact",
+      "frozen": true,
+      "evidence": "fixture-schema.v1 operation 1; cases 1001-1007; FsCheck sorted-list model (tests/FS.GG.Algorithms.Tests HeapTests)"
+    },
+    {
+      "name": "Collections.IndexedHeap: ordering contract (caller comparison, then last-set stamp), insert, decreaseKey, update, remove, pop, peek, contains, count",
+      "grade": "LockstepExact",
+      "frozen": true,
+      "evidence": "fixture-schema.v1 operation 2; cases 2001-2006; FsCheck map model and lazy-deletion equivalence"
+    },
+    {
+      "name": "Numerics.Fixed: add, sub, mul, div, sqrt, neg, abs, ofInt, ofRatio, toIntFloor, toIntCeiling, toIntRound, compare, min, max and the operators",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operations 3 and 10; cases 3001-3004 including the ADR-0098 \u00a73 F2 edge vectors, and case 10001, a 10^5-pair fixed-seed sweep digested per function and recomputed exactly in Python; FsCheck and a 10^5-pair sweep against exact BigInteger oracles"
+    },
+    {
+      "name": "Numerics.Fixed: ofFloat, toFloat",
+      "grade": "Portable",
+      "evidence": "documented contract: toFloat is exact; ofFloat rounds to nearest, ties upward, saturating, NaN to 0 (FsCheck round-trip and half-step bound)"
+    },
+    {
+      "name": "Graph.BestFirst: search, dijkstra, astar, distances (integer costs; deterministic caller functions)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 4; cases 4001-4012; FsCheck against BFS, Bellman-Ford and exhaustive enumeration"
+    },
+    {
+      "name": "Random.Xoshiro128: seed, ofState, state, next, nextBelow, nextInRange, split, jump",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 5; cases 5001-5022; published reference vector for state [1,2,3,4]; independent Python oracle"
+    },
+    {
+      "name": "Random.Xoshiro128: nextFloat",
+      "grade": "Portable",
+      "evidence": "documented contract: the high 24 bits of one draw divided by 2^24, exact in IEEE doubles"
+    }
+  ],
+  "defaultGrade": "Unclassified",
+  "notes": [
+    "Unclassified is not admissible for a new surface (ADR-0098 \u00a73 rule 2); every public surface is listed above.",
+    "Changing the output of a LockstepExact surface for any input is a breaking change with a new profileId. The two heap ordering contracts are frozen: FS.GG.Game.Core pins them (ADR-0098 \u00a71).",
+    "status becomes published-contract only when a released package carries this profile."
+  ]
+}

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The cross-runtime fixture program (ADR-0069, ADR-0098 §4.2). The same sources compile to a .NET
+       executable and, through eng/fable-proof.sh, to JavaScript run under Node. Both decode the canonical
+       input bytes in fixtures/v1/cases.bin, run the library, and print the canonical output records as hex;
+       the two outputs must be identical to each other and to fixtures/v1/expected.bin. No dependency beyond
+       the library and FSharp.Core, so Fable compiles exactly what .NET runs. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Canonical.fs" />
+    <Compile Include="Operations.fs" />
+    <Compile Include="StackSafety.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FS.GG.Algorithms/FS.GG.Algorithms.fsproj" />
+  </ItemGroup>
+
+</Project>

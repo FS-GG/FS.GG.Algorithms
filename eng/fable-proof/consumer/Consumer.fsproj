@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A clean consumer of the PACKED library: eng/fable-proof.sh copies this directory outside the repository,
+       points it at a local feed holding the freshly packed FS.GG.Algorithms, and compiles it with .NET and
+       with Fable (from the package's fable/ sources). No project reference, no repository-relative include. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FS.GG.Algorithms" Version="[$(AlgorithmsVersion)]" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- .NET property tests (FsCheck) against oracles that live in this project only: sorted lists, exact
+       BigInteger arithmetic, BFS, Bellman-Ford and exhaustive path enumeration over synthetic graphs
+       (ADR-0098 §4: oracles use only FS.GG.Algorithms code plus synthetic adapters). Run with dotnet run. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Support.fs" />
+    <Compile Include="Oracles.fs" />
+    <Compile Include="HeapTests.fs" />
+    <Compile Include="FixedTests.fs" />
+    <Compile Include="XoshiroTests.fs" />
+    <Compile Include="BestFirstTests.fs" />
+    <Compile Include="Main.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FS.GG.Algorithms/FS.GG.Algorithms.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="FsCheck" />
+  </ItemGroup>
+
+</Project>
