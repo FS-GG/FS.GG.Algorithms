@@ -81,6 +81,24 @@ probe waits and is never overridden, and a recording run refuses a dirty tree. `
 harness without recording anything.
 Work counts may gate regressions; timings never do.
 
+## Release
+
+`.github/workflows/release.yml` publishes the library. It pushes the byte-identical `.nupkg` to the org GitHub
+Packages feed first, then to nuget.org through Trusted Publishing (OIDC). It runs under the org publication
+writer lock (ADR-0097). The release gates are the locked restore, the build, the property tests and the Fable
+proof, run on the exact commit before anything is pushed.
+
+| Trigger | Effect |
+|---|---|
+| tag `v<version>` | publish; the tag must equal `<Version>` |
+| dispatch `dry-run` | gates and pack only |
+| dispatch `login-preflight` | gates, pack and the nuget.org token exchange, with **no push**: it proves the Trusted Publishing policy before any feed write |
+| dispatch `publish` | publish from the dispatched ref |
+
+After a publish, the job reads back both feeds: every entry except feed signatures and core properties must
+equal the original archive. It then restores a clean consumer from nuget.org alone and runs it on .NET and
+under Fable.
+
 ## Licence
 
 MIT ([LICENSE](LICENSE)). Code is implemented from papers. It is ported only under the allowlist in

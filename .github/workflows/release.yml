@@ -1,0 +1,257 @@
+name: release
+
+# Publishes FS.GG.Algorithms to the org GitHub Packages feed and to public nuget.org: the byte-identical
+# .nupkg, never re-packed between pushes (ADR-0012 dual publish, ADR-0013 Trusted Publishing OIDC, ADR-0039
+# nuget.org as the read path, ADR-0097 one org-wide serialized publication writer, ADR-0098 §2).
+#
+# Version: the EVALUATED <Version> of src/FS.GG.Algorithms (msbuild -getProperty), stable only (no
+# prerelease suffix: the org Renovate preset ignores unstable versions). A pushed tag `v<version>` is a
+# coherence check against it, never the source of truth.
+#
+# Triggers:
+#   push tag v<version>                         publish
+#   workflow_dispatch mode=dry-run              gates and pack only; no credential exchange, no push
+#   workflow_dispatch mode=login-preflight      gates, pack, and the nuget.org OIDC token exchange; NO push
+#                                               (proves the Trusted Publishing policy exists before any
+#                                               feed write, so a missing policy cannot half-publish)
+#   workflow_dispatch mode=publish              publish from the dispatched ref
+#
+# The nuget.org Trusted Publishing policy is bound to: owner FS-GG, repository FS.GG.Algorithms, workflow
+# file release.yml. Renaming this file invalidates it. Without the policy, NuGet/login fails closed with a
+# 401: never a silent no-op.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run | login-preflight | publish"
+        type: choice
+        options: [dry-run, login-preflight, publish]
+        default: dry-run
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Pack & publish FS.GG.Algorithms [org-publication-writer]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # Canonical repository only: fork tags and dispatches never run this.
+    if: github.repository == 'FS-GG/FS.GG.Algorithms'
+    # Least privilege: packages: write for the org feed (GITHUB_TOKEN, never a PAT); id-token: write mints
+    # the GitHub OIDC token that nuget.org exchanges for a short-lived key.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Acquire org publication writer lock
+        uses: FS-GG/.github/.github/actions/publication-writer-lock@c799a9f9b21d52eb9766cf0950722e3e55145d39 # ADR-0097
+        with:
+          max-wait-minutes: 30
+        timeout-minutes: 32
+
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Install Node (the toolchain manifest's major)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "26"
+
+      - name: Resolve version, mode and publish decision
+        id: v
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref_name }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          version="$(dotnet msbuild src/FS.GG.Algorithms/FS.GG.Algorithms.fsproj -getProperty:Version | tr -d '[:space:]')"
+          [ -n "$version" ] || { echo "::error::could not evaluate <Version>"; exit 1; }
+          case "$version" in *-*) echo "::error::version $version is a prerelease; publish a stable 0.x version"; exit 1 ;; esac
+          if [ "$EVENT" = "push" ]; then
+            [ "${REF#v}" = "$version" ] || { echo "::error::tag $REF does not match <Version> $version"; exit 1; }
+            mode=publish
+          else
+            mode="$MODE"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "release: FS.GG.Algorithms $version, mode $mode, commit $GITHUB_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Publish gates on the exact commit (ADR-0098 §4): locked restore, warnings-as-errors build, the property
+      # tests, and the Fable proof (negative control, cross-runtime corpus, independent oracle, packed consumer).
+      - name: Locked restore
+        run: dotnet restore FS.GG.Algorithms.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build FS.GG.Algorithms.slnx --no-restore -c Release
+
+      - name: Property tests
+        run: dotnet run --project tests/FS.GG.Algorithms.Tests -c Release --no-build -- --no-spinner
+
+      - name: Fable proof
+        run: eng/fable-proof.sh "$RUNNER_TEMP/fable-proof"
+
+      - name: Pack (once; these bytes are what both feeds receive)
+        id: pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet pack src/FS.GG.Algorithms -c Release --no-restore -o artifacts/packages
+          archive="artifacts/packages/FS.GG.Algorithms.${{ steps.v.outputs.version }}.nupkg"
+          test -s "$archive"
+          (cd artifacts/packages && sha256sum "$(basename "$archive")" | tee ORIGINAL_SHA256)
+          echo "path=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the archive (dependencies, Fable view, metadata)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I - "${{ steps.pack.outputs.path }}" <<'PY'
+          import re, sys, zipfile
+          z = zipfile.ZipFile(sys.argv[1])
+          names = set(z.namelist())
+          nuspec = z.read(next(n for n in names if n.endswith(".nuspec"))).decode()
+          deps = sorted(set(re.findall(r'<dependency id="([^"]+)"', nuspec)))
+          assert deps == ["FSharp.Core"], deps
+          assert "fable/FS.GG.Algorithms.fsproj" in names
+          for need in ("README.md", "LICENSE", "THIRD-PARTY-NOTICES.md", "fable-compatibility/compatibility-profile.v1.json"):
+              assert need in names, need
+          assert "<license type=\"expression\">MIT</license>" in nuspec
+          print(f"archive ok: dependencies {deps}; {sum(1 for n in names if n.startswith('fable/'))} fable/ files")
+          PY
+
+      - name: Retain the original archive before any push
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fs-gg-algorithms-release-${{ steps.v.outputs.version }}-${{ github.sha }}
+          path: |
+            ${{ steps.pack.outputs.path }}
+            artifacts/packages/ORIGINAL_SHA256
+          if-no-files-found: error
+          retention-days: 90
+
+      # The OIDC exchange happens in login-preflight and publish. In login-preflight nothing is pushed: it only
+      # proves the nuget.org Trusted Publishing policy accepts this workflow.
+      - name: NuGet login (OIDC to a short-lived nuget.org key)
+        if: steps.v.outputs.mode == 'login-preflight' || steps.v.outputs.mode == 'publish'
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
+        with:
+          user: ${{ secrets.NUGET_USER || 'Paradigma11' }}
+
+      - name: Login preflight result
+        if: steps.v.outputs.mode == 'login-preflight'
+        run: |
+          echo "login-preflight: nuget.org Trusted Publishing exchange succeeded, nothing was pushed" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Push to the org GitHub Packages feed
+        if: steps.v.outputs.mode == 'publish'
+        run: |
+          dotnet nuget push "${{ steps.pack.outputs.path }}" \
+            --source https://nuget.pkg.github.com/FS-GG/index.json \
+            --api-key ${{ secrets.GITHUB_TOKEN }} \
+            --skip-duplicate
+
+      - name: Push the byte-identical package to nuget.org
+        if: steps.v.outputs.mode == 'publish'
+        run: |
+          dotnet nuget push "${{ steps.pack.outputs.path }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key ${{ steps.login.outputs.NUGET_API_KEY }} \
+            --skip-duplicate
+
+      # Readback: download the exact version from each feed (bounded wait for propagation), compare every entry
+      # except feed signatures with the original archive, then restore a clean consumer from nuget.org alone
+      # and run it on .NET and under Fable.
+      - name: Read back both feeds and run a clean nuget.org consumer (.NET and Fable)
+        if: steps.v.outputs.mode == 'publish'
+        shell: bash
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          PACKAGE_USER: ${{ github.actor }}
+          PACKAGE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORIGINAL: ${{ steps.pack.outputs.path }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/readback"
+          mkdir -p "$work"
+          fetch() { # fetch URL OUT [auth]
+            for attempt in $(seq 1 40); do
+              if [ -n "${3:-}" ]; then
+                curl -fsSL -u "$PACKAGE_USER:$PACKAGE_TOKEN" -o "$2" "$1" && return 0
+              else
+                curl -fsSL -o "$2" "$1" && return 0
+              fi
+              sleep 30
+            done
+            echo "::error::$1 not available after 20 minutes"; return 1
+          }
+          base_address() { # base_address INDEX [auth]: the feed's PackageBaseAddress, read from its service index
+            if [ -n "${2:-}" ]; then curl -fsS -u "$PACKAGE_USER:$PACKAGE_TOKEN" "$1"; else curl -fsS "$1"; fi \
+              | jq -er '.resources[] | select(."@type" | tostring | startswith("PackageBaseAddress")) | ."@id"' | head -1
+          }
+          v="${VERSION,,}"
+          nuget_base="$(base_address https://api.nuget.org/v3/index.json)"
+          org_base="$(base_address https://nuget.pkg.github.com/FS-GG/index.json auth)"
+          fetch "${nuget_base%/}/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" "$work/nugetorg.nupkg"
+          fetch "${org_base%/}/fs.gg.algorithms/$v/fs.gg.algorithms.$v.nupkg" "$work/github.nupkg" auth
+          python3 -I - "$ORIGINAL" "$work/nugetorg.nupkg" "$work/github.nupkg" <<'PY'
+          import hashlib, sys, zipfile
+          def payload(path):
+              z = zipfile.ZipFile(path)
+              # Feeds may add a signature and rewrite core properties; every other entry must be byte-identical.
+              excluded = lambda n: n == ".signature.p7s" or n.startswith("package/services/metadata/core-properties/")
+              return {n: hashlib.sha256(z.read(n)).hexdigest() for n in z.namelist() if not excluded(n)}
+          original = payload(sys.argv[1])
+          for feed in sys.argv[2:]:
+              got = payload(feed)
+              if got != original:
+                  diff = sorted(set(got.items()) ^ set(original.items()))
+                  sys.exit(f"payload of {feed} differs from the original archive: {diff[:6]}")
+              print(f"readback: {feed}: {len(got)} entries equal the original archive (signature and core properties excluded)")
+          PY
+          consumer="$work/consumer"
+          cp -r eng/fable-proof/consumer "$consumer"
+          sed -i "s/\$(AlgorithmsVersion)/$VERSION/" "$consumer/Consumer.fsproj"
+          printf '<Project />\n' >"$consumer/Directory.Build.props"
+          printf '<Project />\n' >"$consumer/Directory.Packages.props"
+          printf '{ "sdk": { "version": "%s", "rollForward": "latestFeature" } }\n' "$(dotnet --version)" >"$consumer/global.json"
+          cat >"$consumer/NuGet.config" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+          </configuration>
+          XML
+          export NUGET_PACKAGES="$work/packages"
+          dotnet tool restore >/dev/null
+          (cd "$consumer" && dotnet run) >"$work/consumer-dotnet.txt"
+          . eng/fable-compile.sh
+          fable_compile "$PWD" "$work/fable-consumer.log" "$consumer/Consumer.fsproj" --lang javascript --outDir "$work/consumer-js"
+          printf '{"type":"module"}\n' >"$work/consumer-js/package.json"
+          node "$work/consumer-js/Program.js" >"$work/consumer-node.txt"
+          echo "dotnet $(cat "$work/consumer-dotnet.txt")"
+          echo "node   $(cat "$work/consumer-node.txt")"
+          cmp "$work/consumer-dotnet.txt" "$work/consumer-node.txt"
+          grep -q '^heap=bdac mul=' "$work/consumer-node.txt"
+          echo "readback: FS.GG.Algorithms $VERSION restored from nuget.org alone; the consumer prints the same line on .NET and under Fable" | tee -a "$GITHUB_STEP_SUMMARY"
