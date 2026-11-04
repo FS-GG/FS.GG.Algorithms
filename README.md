@@ -104,6 +104,17 @@ the runner image, the .NET SDK, Node and Fable. **Hosted-runner numbers are for 
 same runner class, not absolute performance.** A quiet-fdev baseline remains an optional refinement
 (FS.GG.Algorithms#1).
 
+The [0.2.0 hosted baseline](bench/baselines/github-hosted-ubuntu24-2026-11-04-0.2.0.json) records all 36 cases
+per runtime, including `decision/behaviour-tree/reactive-ticks` at 1,000, 10,000 and 100,000 ticks. It combines
+three sequential runs on clean commit `12b7e6426c27c637edcdacd5a1a0a9beb98864a0`:
+[41776406267](https://github.com/FS-GG/FS.GG.Algorithms/actions/runs/41776406267),
+[41777472739](https://github.com/FS-GG/FS.GG.Algorithms/actions/runs/41777472739) and
+[41778657220](https://github.com/FS-GG/FS.GG.Algorithms/actions/runs/41778657220).
+All three used Ubuntu 24 image `20261026.354.1`, SDK 10.0.403, Fable 5.26.0 and Node 26.13.0, and their full
+case and work-count sets match. The CPU models varied within that hosted class; the reactive cases have
+run-to-run CVs of about 0.24–0.33. Read the stored min/max and CV alongside each median when comparing runs.
+The reactive kernel measures the `BehaviourTree.tick` entry point.
+
 ## Release
 
 `.github/workflows/release.yml` publishes the library. It pushes the byte-identical `.nupkg` to the org GitHub

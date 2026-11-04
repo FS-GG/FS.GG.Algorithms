@@ -1,0 +1,1094 @@
+{
+  "schema": "fsgg.algorithms.bench-results/v1",
+  "package": {
+    "id": "FS.GG.Algorithms",
+    "version": "0.2.0"
+  },
+  "source": {
+    "repository": "FS-GG/FS.GG.Algorithms",
+    "commit": "12b7e6426c27c637edcdacd5a1a0a9beb98864a0",
+    "dirty": false
+  },
+  "host": {
+    "name": "github-hosted-ubuntu24",
+    "os": "Linux-7.0.0-1017-azure-x86_64-with-glibc2.39",
+    "cpu": "AMD EPYC 7763 | AMD EPYC 9V45 | Intel Xeon Platinum 8370C CPU 2.80GHz",
+    "nproc": 4
+  },
+  "recordedAt": "2026-11-04T05:30:37+00:00",
+  "admission": {
+    "probe": "github-hosted runner (no quiet-host probe): numbers are for regression comparison under the same runner class, not absolute performance",
+    "verdict": "admit",
+    "observation": {
+      "hosted": true,
+      "runs": [
+        {
+          "verdict": "admit",
+          "hosted": true,
+          "runnerEnvironment": "github-hosted",
+          "runnerOs": "Linux",
+          "imageOs": "ubuntu24",
+          "imageVersion": "20261026.354.1",
+          "runnerName": "GitHub Actions 1000694272",
+          "runId": "41776406267",
+          "runAttempt": "1",
+          "nproc": 4,
+          "kernel": "7.0.0-1017-azure",
+          "dotnetSdk": "10.0.403",
+          "node": "v26.13.0",
+          "fable": "5.26.0"
+        },
+        {
+          "verdict": "admit",
+          "hosted": true,
+          "runnerEnvironment": "github-hosted",
+          "runnerOs": "Linux",
+          "imageOs": "ubuntu24",
+          "imageVersion": "20261026.354.1",
+          "runnerName": "GitHub Actions 1000694273",
+          "runId": "41777472739",
+          "runAttempt": "1",
+          "nproc": 4,
+          "kernel": "7.0.0-1017-azure",
+          "dotnetSdk": "10.0.403",
+          "node": "v26.13.0",
+          "fable": "5.26.0"
+        },
+        {
+          "verdict": "admit",
+          "hosted": true,
+          "runnerEnvironment": "github-hosted",
+          "runnerOs": "Linux",
+          "imageOs": "ubuntu24",
+          "imageVersion": "20261026.354.1",
+          "runnerName": "GitHub Actions 1000694343",
+          "runId": "41778657220",
+          "runAttempt": "1",
+          "nproc": 4,
+          "kernel": "7.0.0-1017-azure",
+          "dotnetSdk": "10.0.403",
+          "node": "v26.13.0",
+          "fable": "5.26.0"
+        }
+      ]
+    }
+  },
+  "toolchain": {
+    "runnerImages": [
+      "ubuntu24 20261026.354.1"
+    ],
+    "dotnetSdk": "10.0.403",
+    "node": "v26.13.0",
+    "fable": "5.26.0",
+    "runIds": [
+      "41776406267",
+      "41777472739",
+      "41778657220"
+    ],
+    "note": "GitHub-hosted runner numbers are for regression comparison under the same runner class, not absolute performance."
+  },
+  "runs": [
+    {
+      "runtime": "dotnet",
+      "runtimeVersion": ".NET 10.0.14 (10.0.14, 10.0.1426.52326)",
+      "protocol": {
+        "tool": "BenchmarkDotNet 0.15.8",
+        "launches": 1,
+        "warmup": 3,
+        "iterations": 10,
+        "diagnoser": "MemoryDiagnoser",
+        "toolchain": "default",
+        "combinedRuns": 3,
+        "statistic": "median across runs of each run's median and p95; spread over the per-run medians"
+      },
+      "results": [
+        {
+          "kernel": "collections/binary-heap/push-pop",
+          "size": 1000,
+          "workCount": 2000,
+          "medianNs": 182753.49743652344,
+          "p95Ns": 184364.4573486328,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 122419.28332519531,
+            "maxMedianNs": 200805.32006835938,
+            "cv": 0.1987
+          },
+          "allocatedBytesPerOp": 40896
+        },
+        {
+          "kernel": "collections/binary-heap/push-pop",
+          "size": 10000,
+          "workCount": 20000,
+          "medianNs": 2756574.958984375,
+          "p95Ns": 2759756.274609375,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1946930.09765625,
+            "maxMedianNs": 2928255.400390625,
+            "cv": 0.1682
+          },
+          "allocatedBytesPerOp": 502848
+        },
+        {
+          "kernel": "collections/binary-heap/push-pop",
+          "size": 100000,
+          "workCount": 200000,
+          "medianNs": 36440284,
+          "p95Ns": 36568719.385714285,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 24457805.9375,
+            "maxMedianNs": 36547865.67857143,
+            "cv": 0.1747
+          },
+          "allocatedBytesPerOp": 4498158
+        },
+        {
+          "kernel": "decision/behaviour-tree/reactive-ticks",
+          "size": 1000,
+          "workCount": 2531,
+          "medianNs": 407546.1975097656,
+          "p95Ns": 413635.1016357422,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 223131.10974121094,
+            "maxMedianNs": 423185.68994140625,
+            "cv": 0.2586
+          },
+          "allocatedBytesPerOp": 671344
+        },
+        {
+          "kernel": "decision/behaviour-tree/reactive-ticks",
+          "size": 10000,
+          "workCount": 24967,
+          "medianNs": 4127122.8671875,
+          "p95Ns": 4178457.94140625,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 2289407.064453125,
+            "maxMedianNs": 4233148.890625,
+            "cv": 0.2514
+          },
+          "allocatedBytesPerOp": 6699024
+        },
+        {
+          "kernel": "decision/behaviour-tree/reactive-ticks",
+          "size": 100000,
+          "workCount": 249467,
+          "medianNs": 40000213.23076923,
+          "p95Ns": 40222756.96923076,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 23119947.15625,
+            "maxMedianNs": 41036535.538461536,
+            "cv": 0.2365
+          },
+          "allocatedBytesPerOp": 66978216
+        },
+        {
+          "kernel": "decision/behaviour-tree/ticks",
+          "size": 1000,
+          "workCount": 3070,
+          "medianNs": 535562.818359375,
+          "p95Ns": 537923.315625,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 293312.12158203125,
+            "maxMedianNs": 538011.255859375,
+            "cv": 0.2519
+          },
+          "allocatedBytesPerOp": 930872
+        },
+        {
+          "kernel": "decision/behaviour-tree/ticks",
+          "size": 10000,
+          "workCount": 30302,
+          "medianNs": 5091292.84765625,
+          "p95Ns": 5181127.640234375,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 2928991.099609375,
+            "maxMedianNs": 5378122.9453125,
+            "cv": 0.2448
+          },
+          "allocatedBytesPerOp": 9296768
+        },
+        {
+          "kernel": "decision/behaviour-tree/ticks",
+          "size": 100000,
+          "workCount": 302535,
+          "medianNs": 52894187.65,
+          "p95Ns": 53420341.91,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 29071507.0625,
+            "maxMedianNs": 53916548.7,
+            "cv": 0.2534
+          },
+          "allocatedBytesPerOp": 92950944
+        },
+        {
+          "kernel": "graph/best-first-search/astar-grid",
+          "size": 32,
+          "workCount": 79,
+          "medianNs": 84686.47937011719,
+          "p95Ns": 85092.35712890625,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 48118.083740234375,
+            "maxMedianNs": 84807.10375976562,
+            "cv": 0.238
+          },
+          "allocatedBytesPerOp": 111752
+        },
+        {
+          "kernel": "graph/best-first-search/astar-grid",
+          "size": 128,
+          "workCount": 1549,
+          "medianNs": 2087032.5078125,
+          "p95Ns": 2102434.58125,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1206018.2001953125,
+            "maxMedianNs": 2092866.77734375,
+            "cv": 0.2321
+          },
+          "allocatedBytesPerOp": 2023408
+        },
+        {
+          "kernel": "graph/best-first-search/astar-grid",
+          "size": 512,
+          "workCount": 9859,
+          "medianNs": 20467496.15625,
+          "p95Ns": 20919656.7109375,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 12055322.765625,
+            "maxMedianNs": 22194264.25,
+            "cv": 0.2428
+          },
+          "allocatedBytesPerOp": 13820046
+        },
+        {
+          "kernel": "graph/best-first-search/dijkstra-grid",
+          "size": 32,
+          "workCount": 756,
+          "medianNs": 651537.3232421875,
+          "p95Ns": 657496.4745117187,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 358794.92138671875,
+            "maxMedianNs": 679509.556640625,
+            "cv": 0.2575
+          },
+          "allocatedBytesPerOp": 939920
+        },
+        {
+          "kernel": "graph/best-first-search/dijkstra-grid",
+          "size": 128,
+          "workCount": 12216,
+          "medianNs": 19485885.765625,
+          "p95Ns": 20351396.8890625,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 11523664,
+            "maxMedianNs": 23556768.203125,
+            "cv": 0.2748
+          },
+          "allocatedBytesPerOp": 17559566
+        },
+        {
+          "kernel": "graph/best-first-search/dijkstra-grid",
+          "size": 512,
+          "workCount": 195518,
+          "medianNs": 596461727,
+          "p95Ns": 619012768.9,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 407283695,
+            "maxMedianNs": 717576050,
+            "cv": 0.2225
+          },
+          "allocatedBytesPerOp": 374663488
+        },
+        {
+          "kernel": "graph/iterative-tarjan-scc/random-digraph",
+          "size": 1000,
+          "workCount": 694,
+          "medianNs": 126852.97900390625,
+          "p95Ns": 129775.71865234374,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 66679.36346435547,
+            "maxMedianNs": 128658.30236816406,
+            "cv": 0.2682
+          },
+          "allocatedBytesPerOp": 346880
+        },
+        {
+          "kernel": "graph/iterative-tarjan-scc/random-digraph",
+          "size": 10000,
+          "workCount": 6585,
+          "medianNs": 2146170.48828125,
+          "p95Ns": 2186054.341796875,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1265154.216796875,
+            "maxMedianNs": 2451330.013671875,
+            "cv": 0.2573
+          },
+          "allocatedBytesPerOp": 3421025
+        },
+        {
+          "kernel": "graph/iterative-tarjan-scc/random-digraph",
+          "size": 100000,
+          "workCount": 66457,
+          "medianNs": 51567818.15,
+          "p95Ns": 53386538.36,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 33825713.39285714,
+            "maxMedianNs": 52736020.8,
+            "cv": 0.1879
+          },
+          "allocatedBytesPerOp": 34184283
+        },
+        {
+          "kernel": "graph/topological-sort-cpm/random-dag",
+          "size": 1000,
+          "workCount": 39,
+          "medianNs": 362170.03662109375,
+          "p95Ns": 364263.9892578125,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 204048.37915039062,
+            "maxMedianNs": 381656.6174316406,
+            "cv": 0.2517
+          },
+          "allocatedBytesPerOp": 374912
+        },
+        {
+          "kernel": "graph/topological-sort-cpm/random-dag",
+          "size": 10000,
+          "workCount": 55,
+          "medianNs": 5270145.40234375,
+          "p95Ns": 5310492.098046875,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 3321324.5,
+            "maxMedianNs": 5808226.00390625,
+            "cv": 0.2226
+          },
+          "allocatedBytesPerOp": 3731601
+        },
+        {
+          "kernel": "graph/topological-sort-cpm/random-dag",
+          "size": 100000,
+          "workCount": 55,
+          "medianNs": 81725659.64285713,
+          "p95Ns": 83025654.35714287,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 53907178.4,
+            "maxMedianNs": 85316124.16666666,
+            "cv": 0.1906
+          },
+          "allocatedBytesPerOp": 35805057
+        },
+        {
+          "kernel": "graph/union-find/random-unions",
+          "size": 1000,
+          "workCount": 840,
+          "medianNs": 6978.065128326416,
+          "p95Ns": 7035.409930038452,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 3519.64035987854,
+            "maxMedianNs": 7517.131088256836,
+            "cv": 0.2949
+          },
+          "allocatedBytesPerOp": 12120
+        },
+        {
+          "kernel": "graph/union-find/random-unions",
+          "size": 10000,
+          "workCount": 8349,
+          "medianNs": 160333.7939453125,
+          "p95Ns": 161488.38696289062,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 38213.548248291016,
+            "maxMedianNs": 181757.03686523438,
+            "cv": 0.4987
+          },
+          "allocatedBytesPerOp": 120120
+        },
+        {
+          "kernel": "graph/union-find/random-unions",
+          "size": 100000,
+          "workCount": 83786,
+          "medianNs": 2914667.181640625,
+          "p95Ns": 2934126.684765625,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1862869.5791015625,
+            "maxMedianNs": 2943367.62109375,
+            "cv": 0.1953
+          },
+          "allocatedBytesPerOp": 1200224
+        },
+        {
+          "kernel": "numerics/fixed-q16-16/mul-div-sqrt",
+          "size": 1000,
+          "workCount": 3000,
+          "medianNs": 189471.73205566406,
+          "p95Ns": 189624.287109375,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 89402.26892089844,
+            "maxMedianNs": 208813.22875976562,
+            "cv": 0.3219
+          },
+          "allocatedBytesPerOp": 0
+        },
+        {
+          "kernel": "numerics/fixed-q16-16/mul-div-sqrt",
+          "size": 10000,
+          "workCount": 30000,
+          "medianNs": 2132492.7734375,
+          "p95Ns": 2134040.38671875,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1759589.2802734375,
+            "maxMedianNs": 2331692.43359375,
+            "cv": 0.1143
+          },
+          "allocatedBytesPerOp": 0
+        },
+        {
+          "kernel": "numerics/fixed-q16-16/mul-div-sqrt",
+          "size": 100000,
+          "workCount": 300000,
+          "medianNs": 21312991.953125,
+          "p95Ns": 21325983.5765625,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 17723304.71875,
+            "maxMedianNs": 23484020.78125,
+            "cv": 0.114
+          },
+          "allocatedBytesPerOp": 0
+        },
+        {
+          "kernel": "random/xoshiro128/next",
+          "size": 1000,
+          "workCount": 1000,
+          "medianNs": 16099.805908203125,
+          "p95Ns": 16109.031282043456,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 12775.888000488281,
+            "maxMedianNs": 19944.500442504883,
+            "cv": 0.18
+          },
+          "allocatedBytesPerOp": 0
+        },
+        {
+          "kernel": "random/xoshiro128/next",
+          "size": 10000,
+          "workCount": 10000,
+          "medianNs": 161771.76904296875,
+          "p95Ns": 161897.2956176758,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 127039.01293945312,
+            "maxMedianNs": 199355.85327148438,
+            "cv": 0.1815
+          },
+          "allocatedBytesPerOp": 0
+        },
+        {
+          "kernel": "random/xoshiro128/next",
+          "size": 100000,
+          "workCount": 100000,
+          "medianNs": 2029476.875,
+          "p95Ns": 2030475.109667969,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1306142.8681640625,
+            "maxMedianNs": 2533860.2587890625,
+            "cv": 0.2575
+          },
+          "allocatedBytesPerOp": 0
+        },
+        {
+          "kernel": "search.grid/doors-and-planes/corner-to-corner",
+          "size": 32,
+          "workCount": 1745,
+          "medianNs": 2094437.5390625,
+          "p95Ns": 2098341.8531250004,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1221858.3388671875,
+            "maxMedianNs": 2143972.330078125,
+            "cv": 0.2327
+          },
+          "allocatedBytesPerOp": 2748200
+        },
+        {
+          "kernel": "search.grid/doors-and-planes/corner-to-corner",
+          "size": 128,
+          "workCount": 11422,
+          "medianNs": 18974562.359375,
+          "p95Ns": 19212490.334375,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 12084614.1875,
+            "maxMedianNs": 19872631,
+            "cv": 0.2049
+          },
+          "allocatedBytesPerOp": 18948830
+        },
+        {
+          "kernel": "search.grid/doors-and-planes/corner-to-corner",
+          "size": 512,
+          "workCount": 191214,
+          "medianNs": 403401214,
+          "p95Ns": 409134407.29999995,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 268870379,
+            "maxMedianNs": 445423057,
+            "cv": 0.2021
+          },
+          "allocatedBytesPerOp": 348117764
+        },
+        {
+          "kernel": "spatial/kd-tree/nearest-1000-queries",
+          "size": 1000,
+          "workCount": 495604,
+          "medianNs": 508214.40576171875,
+          "p95Ns": 508691.7083496094,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 233631.85473632812,
+            "maxMedianNs": 518599.2421875,
+            "cv": 0.3141
+          },
+          "allocatedBytesPerOp": 827664
+        },
+        {
+          "kernel": "spatial/kd-tree/nearest-1000-queries",
+          "size": 10000,
+          "workCount": 5042216,
+          "medianNs": 676679.6030273438,
+          "p95Ns": 677271.4317382813,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 315273.9169921875,
+            "maxMedianNs": 703984.1254882812,
+            "cv": 0.3134
+          },
+          "allocatedBytesPerOp": 870096
+        },
+        {
+          "kernel": "spatial/kd-tree/nearest-1000-queries",
+          "size": 100000,
+          "workCount": 50027628,
+          "medianNs": 1068442.7734375,
+          "p95Ns": 1079307.2499023438,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 490850.01123046875,
+            "maxMedianNs": 1087781.638671875,
+            "cv": 0.3139
+          },
+          "allocatedBytesPerOp": 1448312
+        }
+      ]
+    },
+    {
+      "runtime": "node",
+      "runtimeVersion": "v26.13.0",
+      "protocol": {
+        "warmup": 5,
+        "iterations": 30,
+        "statistic": "median across runs of each run's median and p95; spread over the per-run medians",
+        "clock": "process.hrtime.bigint",
+        "smoke": false,
+        "combinedRuns": 3
+      },
+      "results": [
+        {
+          "kernel": "collections/binary-heap/push-pop",
+          "size": 1000,
+          "workCount": 2000,
+          "medianNs": 493046,
+          "p95Ns": 1117409,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 293610,
+            "maxMedianNs": 532561,
+            "cv": 0.2378
+          }
+        },
+        {
+          "kernel": "collections/binary-heap/push-pop",
+          "size": 10000,
+          "workCount": 20000,
+          "medianNs": 5544082,
+          "p95Ns": 6359829,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 3177524,
+            "maxMedianNs": 6229671,
+            "cv": 0.2624
+          }
+        },
+        {
+          "kernel": "collections/binary-heap/push-pop",
+          "size": 100000,
+          "workCount": 200000,
+          "medianNs": 70214091,
+          "p95Ns": 76896828,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 39542923,
+            "maxMedianNs": 72852226,
+            "cv": 0.2484
+          }
+        },
+        {
+          "kernel": "decision/behaviour-tree/reactive-ticks",
+          "size": 1000,
+          "workCount": 2531,
+          "medianNs": 2938323,
+          "p95Ns": 4079516,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1863292,
+            "maxMedianNs": 4267296,
+            "cv": 0.3253
+          }
+        },
+        {
+          "kernel": "decision/behaviour-tree/reactive-ticks",
+          "size": 10000,
+          "workCount": 24967,
+          "medianNs": 30574761,
+          "p95Ns": 32001444,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 21423636,
+            "maxMedianNs": 44228347,
+            "cv": 0.2921
+          }
+        },
+        {
+          "kernel": "decision/behaviour-tree/reactive-ticks",
+          "size": 100000,
+          "workCount": 249467,
+          "medianNs": 318438111,
+          "p95Ns": 338248999,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 201392872,
+            "maxMedianNs": 443831282,
+            "cv": 0.3082
+          }
+        },
+        {
+          "kernel": "decision/behaviour-tree/ticks",
+          "size": 1000,
+          "workCount": 3070,
+          "medianNs": 3548503,
+          "p95Ns": 4700356,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 2013278,
+            "maxMedianNs": 3787343,
+            "cv": 0.2522
+          }
+        },
+        {
+          "kernel": "decision/behaviour-tree/ticks",
+          "size": 10000,
+          "workCount": 30302,
+          "medianNs": 39996039,
+          "p95Ns": 41665875,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 24602127,
+            "maxMedianNs": 50148307,
+            "cv": 0.2746
+          }
+        },
+        {
+          "kernel": "decision/behaviour-tree/ticks",
+          "size": 100000,
+          "workCount": 302535,
+          "medianNs": 387252326,
+          "p95Ns": 412132819,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 252454849,
+            "maxMedianNs": 556836380,
+            "cv": 0.3122
+          }
+        },
+        {
+          "kernel": "graph/best-first-search/astar-grid",
+          "size": 32,
+          "workCount": 79,
+          "medianNs": 428737,
+          "p95Ns": 902959,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 218027,
+            "maxMedianNs": 457127,
+            "cv": 0.2898
+          }
+        },
+        {
+          "kernel": "graph/best-first-search/astar-grid",
+          "size": 128,
+          "workCount": 1549,
+          "medianNs": 3830577,
+          "p95Ns": 7675271,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 2444104,
+            "maxMedianNs": 4007111,
+            "cv": 0.2039
+          }
+        },
+        {
+          "kernel": "graph/best-first-search/astar-grid",
+          "size": 512,
+          "workCount": 9859,
+          "medianNs": 31353687,
+          "p95Ns": 33085304,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 18997927,
+            "maxMedianNs": 33299696,
+            "cv": 0.2271
+          }
+        },
+        {
+          "kernel": "graph/best-first-search/dijkstra-grid",
+          "size": 32,
+          "workCount": 756,
+          "medianNs": 1154184,
+          "p95Ns": 2266741,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 908342,
+            "maxMedianNs": 1289142,
+            "cv": 0.1411
+          }
+        },
+        {
+          "kernel": "graph/best-first-search/dijkstra-grid",
+          "size": 128,
+          "workCount": 12216,
+          "medianNs": 25792141,
+          "p95Ns": 27542805,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 16430326,
+            "maxMedianNs": 27192435,
+            "cv": 0.2065
+          }
+        },
+        {
+          "kernel": "graph/best-first-search/dijkstra-grid",
+          "size": 512,
+          "workCount": 195518,
+          "medianNs": 554167047,
+          "p95Ns": 622810412,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 396213859,
+            "maxMedianNs": 600662153,
+            "cv": 0.1692
+          }
+        },
+        {
+          "kernel": "graph/iterative-tarjan-scc/random-digraph",
+          "size": 1000,
+          "workCount": 694,
+          "medianNs": 1012374,
+          "p95Ns": 2080462,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 609133,
+            "maxMedianNs": 1664108,
+            "cv": 0.3969
+          }
+        },
+        {
+          "kernel": "graph/iterative-tarjan-scc/random-digraph",
+          "size": 10000,
+          "workCount": 6585,
+          "medianNs": 10325126,
+          "p95Ns": 12572969,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 5950509,
+            "maxMedianNs": 12603368,
+            "cv": 0.2868
+          }
+        },
+        {
+          "kernel": "graph/iterative-tarjan-scc/random-digraph",
+          "size": 100000,
+          "workCount": 66457,
+          "medianNs": 207317781,
+          "p95Ns": 230568879,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 198339891,
+            "maxMedianNs": 252036832,
+            "cv": 0.1071
+          }
+        },
+        {
+          "kernel": "graph/topological-sort-cpm/random-dag",
+          "size": 1000,
+          "workCount": 39,
+          "medianNs": 1773930,
+          "p95Ns": 3547751,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1027549,
+            "maxMedianNs": 1900407,
+            "cv": 0.2457
+          }
+        },
+        {
+          "kernel": "graph/topological-sort-cpm/random-dag",
+          "size": 10000,
+          "workCount": 55,
+          "medianNs": 19460987,
+          "p95Ns": 26233928,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 11336926,
+            "maxMedianNs": 21115651,
+            "cv": 0.247
+          }
+        },
+        {
+          "kernel": "graph/topological-sort-cpm/random-dag",
+          "size": 100000,
+          "workCount": 55,
+          "medianNs": 268693234,
+          "p95Ns": 300943620,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 181799525,
+            "maxMedianNs": 295774058,
+            "cv": 0.1954
+          }
+        },
+        {
+          "kernel": "graph/union-find/random-unions",
+          "size": 1000,
+          "workCount": 840,
+          "medianNs": 147627,
+          "p95Ns": 407599,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 98268,
+            "maxMedianNs": 172221,
+            "cv": 0.2206
+          }
+        },
+        {
+          "kernel": "graph/union-find/random-unions",
+          "size": 10000,
+          "workCount": 8349,
+          "medianNs": 1614587,
+          "p95Ns": 1671087,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 959368,
+            "maxMedianNs": 1749665,
+            "cv": 0.2395
+          }
+        },
+        {
+          "kernel": "graph/union-find/random-unions",
+          "size": 100000,
+          "workCount": 83786,
+          "medianNs": 17839905,
+          "p95Ns": 18671462,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 10140183,
+            "maxMedianNs": 18769751,
+            "cv": 0.2482
+          }
+        },
+        {
+          "kernel": "numerics/fixed-q16-16/mul-div-sqrt",
+          "size": 1000,
+          "workCount": 3000,
+          "medianNs": 261226,
+          "p95Ns": 339611,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 166029,
+            "maxMedianNs": 484709,
+            "cv": 0.4394
+          }
+        },
+        {
+          "kernel": "numerics/fixed-q16-16/mul-div-sqrt",
+          "size": 10000,
+          "workCount": 30000,
+          "medianNs": 2783202,
+          "p95Ns": 2828455,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 2167611,
+            "maxMedianNs": 2986889,
+            "cv": 0.1316
+          }
+        },
+        {
+          "kernel": "numerics/fixed-q16-16/mul-div-sqrt",
+          "size": 100000,
+          "workCount": 300000,
+          "medianNs": 27876786,
+          "p95Ns": 28038166,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 22001230,
+            "maxMedianNs": 30195692,
+            "cv": 0.1292
+          }
+        },
+        {
+          "kernel": "random/xoshiro128/next",
+          "size": 1000,
+          "workCount": 1000,
+          "medianNs": 16501,
+          "p95Ns": 51876,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 9575,
+            "maxMedianNs": 18831,
+            "cv": 0.2626
+          }
+        },
+        {
+          "kernel": "random/xoshiro128/next",
+          "size": 10000,
+          "workCount": 10000,
+          "medianNs": 125658,
+          "p95Ns": 217965,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 111711,
+            "maxMedianNs": 148716,
+            "cv": 0.1186
+          }
+        },
+        {
+          "kernel": "random/xoshiro128/next",
+          "size": 100000,
+          "workCount": 100000,
+          "medianNs": 684752,
+          "p95Ns": 883000,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 420390,
+            "maxMedianNs": 851773,
+            "cv": 0.2723
+          }
+        },
+        {
+          "kernel": "search.grid/doors-and-planes/corner-to-corner",
+          "size": 32,
+          "workCount": 1745,
+          "medianNs": 10856698,
+          "p95Ns": 12561117,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 6806609,
+            "maxMedianNs": 11742626,
+            "cv": 0.2192
+          }
+        },
+        {
+          "kernel": "search.grid/doors-and-planes/corner-to-corner",
+          "size": 128,
+          "workCount": 11422,
+          "medianNs": 82805688,
+          "p95Ns": 87768547,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 55144705,
+            "maxMedianNs": 93431212,
+            "cv": 0.2092
+          }
+        },
+        {
+          "kernel": "search.grid/doors-and-planes/corner-to-corner",
+          "size": 512,
+          "workCount": 191214,
+          "medianNs": 1651215872,
+          "p95Ns": 1713479319,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1171838827,
+            "maxMedianNs": 1890176000,
+            "cv": 0.1901
+          }
+        },
+        {
+          "kernel": "spatial/kd-tree/nearest-1000-queries",
+          "size": 1000,
+          "workCount": 495604,
+          "medianNs": 1748584,
+          "p95Ns": 1950920,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 968952,
+            "maxMedianNs": 1889659,
+            "cv": 0.2636
+          }
+        },
+        {
+          "kernel": "spatial/kd-tree/nearest-1000-queries",
+          "size": 10000,
+          "workCount": 5042216,
+          "medianNs": 2304958,
+          "p95Ns": 2618692,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1233358,
+            "maxMedianNs": 2434275,
+            "cv": 0.2704
+          }
+        },
+        {
+          "kernel": "spatial/kd-tree/nearest-1000-queries",
+          "size": 100000,
+          "workCount": 50027628,
+          "medianNs": 2916875,
+          "p95Ns": 3479871,
+          "spread": {
+            "runs": 3,
+            "minMedianNs": 1601089,
+            "maxMedianNs": 4422004,
+            "cv": 0.3867
+          }
+        }
+      ]
+    }
+  ]
+}
