@@ -1,0 +1,73 @@
+name: org original archive proof
+
+# Read an already-published archive; never pack, publish, log in to NuGet or change a tag.
+on:
+  workflow_dispatch:
+    inputs:
+      original_run:
+        description: Original push-tag release run
+        required: true
+        type: string
+      source:
+        description: Original publication commit (40 lowercase hex)
+        required: true
+        type: string
+      version:
+        description: Stable 0.x package version
+        required: true
+        type: string
+      sha256:
+        description: Retained original nupkg SHA256
+        required: true
+        type: string
+      producer_sha256:
+        description: Original release.yml source SHA256
+        required: true
+        type: string
+      deadline_utc:
+        description: Existing original operation deadline (ISO UTC, never renewed here)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+concurrency:
+  group: org-original-proof-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: org original archive proof (read only)
+    if: github.repository == 'FS-GG/FS.GG.Algorithms'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out protected main and original source ancestry
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Compare GitHub-held whole file with original retained publish archive
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          INPUT_ORIGINAL_RUN: ${{ inputs.original_run }}
+          INPUT_SOURCE: ${{ inputs.source }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SHA256: ${{ inputs.sha256 }}
+          INPUT_PRODUCER_SHA256: ${{ inputs.producer_sha256 }}
+          INPUT_DEADLINE_UTC: ${{ inputs.deadline_utc }}
+          PROOF_WORKDIR: ${{ runner.temp }}/algorithms-org-original-proof
+        run: python3 -I eng/readback-original.py
+      # A failed comparison can retain custody files, but has no proof.json and never qualifies.
+      - name: Retain exact compared archives and proof
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: algorithms-org-original-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/algorithms-org-original-proof/
+          if-no-files-found: warn
+          retention-days: 90
