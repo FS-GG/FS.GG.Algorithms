@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.parse
 import zipfile
 
 REPO = "FS-GG/FS.GG.Algorithms"
@@ -96,10 +97,78 @@ class Native:
     def check(self, *args):
         left = self.deadline - time.monotonic()
         require(left > 0, "original proof budget expired")
-        result = subprocess.run([sys.executable, str(CHECKS), *map(str, args)], capture_output=True, timeout=min(65, left))
+        try:
+            result = subprocess.run([sys.executable, str(CHECKS), *map(str, args)], capture_output=True, timeout=min(65, left))
+        except subprocess.TimeoutExpired:
+            print("org-original-proof: checker " + json.dumps({"phase": str(args[0]), "outcome": "timeout", "exitCode": None}), flush=True)
+            raise ValueError("maintained release check timeout: " + str(args[0])) from None
+        if result.returncode:
+            # These fields cannot contain checker stderr, URLs, headers or credentials.
+            print("org-original-proof: checker " + json.dumps({"phase": str(args[0]), "outcome": "refused", "exitCode": result.returncode}), flush=True)
         require(result.returncode == 0, "maintained release check refused: " + str(args[0]))
         # Successful checker output contains public package identities/digests, never credentials.
         print(result.stdout.decode(), end="", flush=True)
+
+    def fetch_org(self, version, user, target, token):
+        """Use the maintained release readback's curl -fsSL Basic semantics, once per GET.
+
+        Credentials enter curl through stdin, never argv. Curl's default redirect policy
+        strips authentication on cross-host redirects; location-trusted is never enabled.
+        Only a same-origin HTTPS PackageBaseAddress may receive the initial Basic auth.
+        """
+        diagnostics = []
+
+        def record(phase, outcome, status=None, exit_code=None):
+            row = {"phase": phase, "outcome": outcome, "httpStatus": status, "curlExit": exit_code}
+            diagnostics.append(row)
+            (target.parent / "transport-status.json").write_text(json.dumps(diagnostics, indent=2) + "\n")
+            print("org-original-proof: transport " + json.dumps(row), flush=True)
+
+        def get(phase, url, out):
+            left = self.deadline - time.monotonic()
+            require(left > 0, "original proof read budget expired")
+            # Inputs are never shell code or curl config directives.
+            require(user and token and all(c not in user + token for c in '\r\n\x00'), "unsupported credential characters")
+            credential = (user + ":" + token).replace("\\", "\\\\").replace('"', '\\"')
+            # Disable implicit curlrc options, which could otherwise weaken redirect auth policy.
+            args = ["curl", "-q", "-fsSL", "--proto", "=https", "--proto-redir", "=https",
+                    "--max-time", str(left), "--connect-timeout", str(min(10, left)),
+                    "--config", "-", "--output", str(out), "--write-out", "%{http_code}", url]
+            try:
+                result = subprocess.run(args, input=('user = "' + credential + '"\n').encode(),
+                                        capture_output=True, timeout=left)
+            except subprocess.TimeoutExpired:
+                record(phase, "timeout")
+                raise ValueError("org transport timeout: " + phase) from None
+            except OSError:
+                record(phase, "unavailable")
+                raise ValueError("org transport unavailable: " + phase) from None
+            status = int(result.stdout) if re.fullmatch(rb"[0-9]{3}", result.stdout) else None
+            outcome = "success" if result.returncode == 0 and status == 200 else "timeout" if result.returncode == 28 else "refused"
+            record(phase, outcome, status, result.returncode)
+            require(outcome == "success", "org transport refused: " + phase)
+
+        index = target.parent / "org-index.json"
+        try:
+            get("org-index", "https://nuget.pkg.github.com/FS-GG/index.json", index)
+            index_raw = index.read_bytes()
+        finally:
+            # A service index can contain protocol-internal URLs. Never retain it as custody.
+            index.unlink(missing_ok=True)
+        try:
+            resources = json.loads(index_raw)["resources"]
+            addresses = [r["@id"] for r in resources if str(r["@type"]).startswith("PackageBaseAddress")]
+            require(len(addresses) == 1 and isinstance(addresses[0], str), "ambiguous org package base address")
+            base = urllib.parse.urlsplit(addresses[0])
+            require(base.scheme == "https" and base.netloc == "nuget.pkg.github.com" and not base.query and not base.fragment,
+                    "org package base address is not same-origin HTTPS")
+        except (KeyError, TypeError, ValueError):
+            record("org-index-schema", "refused")
+            raise ValueError("org index schema refused") from None
+        get("org-package", addresses[0].rstrip("/") + f"/fs.gg.algorithms/{version}/fs.gg.algorithms.{version}.nupkg", target)
+        if not target.is_file() or target.stat().st_size == 0:
+            record("org-package-body", "refused")
+            raise ValueError("org package was empty")
 
 
 def prove(v, api, work, env):
@@ -117,7 +186,7 @@ def prove(v, api, work, env):
     original_path, hash_path, state_path, held = work / filename, work / "ORIGINAL_SHA256", work / "publish-state.json", work / "github-held.nupkg"
     original_path.write_bytes(package); hash_path.write_bytes(members[0]["ORIGINAL_SHA256"]); state_path.write_bytes(members[1]["publish-state.json"])
     api.check("validate-source", state_path, hash_path, original, version, source)
-    api.check("fetch-github", version, env["GITHUB_ACTOR"], held)
+    api.fetch_org(version, env["GITHUB_ACTOR"], held, env["GITHUB_TOKEN"])
     api.check("compare-held", held, original_path)
     after = api.get("git/ref/tags/v" + version)
     require(after["object"]["sha"] == source and after["object"]["type"] == "commit", "tag changed during proof")
@@ -127,7 +196,9 @@ def prove(v, api, work, env):
              "originalArchiveArtifact": selected[0]["id"], "originalArchiveArtifactDigest": selected[0]["digest"], "originalStateArtifact": selected[1]["id"], "originalStateArtifactDigest": selected[1]["digest"],
              "originalArchiveSha256": sha(package), "orgWholeFileSha256": sha(held.read_bytes()), "originalBytes": len(package), "orgBytes": held.stat().st_size, "wholeFileEqual": True,
              "proofWorkflowSource": env["GITHUB_SHA"], "proofRun": env["GITHUB_RUN_ID"], "proofAttempt": 1, "packageWrites": False, "originalDeadlineUtc": v["DEADLINE_UTC"]}
-    (work / "proof.json").write_text(json.dumps(proof, indent=2) + "\n")
+    pending = work / "proof.tmp"
+    pending.write_text(json.dumps(proof, indent=2) + "\n")
+    pending.replace(work / "proof.json")
     return proof
 
 
