@@ -29,6 +29,19 @@ The grades are recorded in
 [`src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json`](src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json).
 The public surface is declared in the `.fsi` signature files.
 
+### 0.2.0 API additions
+
+`BehaviourTree.tickTracedWithHalts` adds a fifth return value to the traced result: the preorder indices of
+leaves halted by preemption or a finishing Parallel. Cancel those actions after the tick returns. The
+indices identify tree occurrences, so equal leaf values can appear at different indices. Halts follow
+abandonment-event order, then preorder within each abandoned branch; repeated activations can repeat an
+index. Completed and idle leaves are excluded. Existing `tick` and `tickTraced` calls retain their results.
+
+```fsharp
+let status, nextState, nextBlackboard, visited, halted =
+    BehaviourTree.tickTracedWithHalts program leaf state blackboard
+```
+
 **The heap ordering contract is frozen.** Among equal priorities, `BinaryHeap` pops in push order and
 `IndexedHeap` pops in the order the priorities were set. FS.GG.Game.Core pins this contract (ADR-0098
 §1). Changing the pop order for any input is a breaking change with a new compatibility identity.

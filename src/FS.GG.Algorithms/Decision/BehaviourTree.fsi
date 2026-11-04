@@ -80,7 +80,7 @@ type BtState =
 ///   finishes (its still-running children), and a reactive composite whose earlier child takes over (the
 ///   child that was running). Halting is silent: no leaf is called. A leaf that returned Running and is not
 ///   ticked on the next tick has been halted, either by that next tick or, on its own tick, by a Parallel
-///   that finished.
+///   that finished. `tickTracedWithHalts` reports those leaves explicitly.
 /// - Invariant (halt invariant): after every tick, non-idle memory exists only on the live path, the nodes
 ///   that returned Running with every ancestor Running. A node with a non-zero cursor or counter is on it; a
 ///   non-zero `Finished` entry belongs to a child of a live Parallel. In particular, after a node finishes
@@ -92,7 +92,8 @@ type BtState =
 ///
 /// SCOPE: memory composites (Sequence, Selector) and reactive composites (ReactiveSequence, ReactiveFallback,
 /// FS-GG/FS.GG.Algorithms#8). Use a reactive composite where a higher-priority branch must be able to interrupt
-/// a running lower one. There is no halt callback (see Halting).
+/// a running lower one. There is no halt callback; use `tickTracedWithHalts` to cancel effectful actions
+/// after the tick returns (see Halting).
 ///
 /// DETERMINISM (`LockstepExact` for a deterministic `leaf`). The memory is integers, and the tick order is the
 /// fixed child order. The interpreter is an explicit stack machine, so a tree 10^5 levels deep ticks under
@@ -128,3 +129,16 @@ module BehaviourTree =
         state: BtState ->
         blackboard: 'B ->
             BtStatus * BtState * 'B * int list
+
+    /// `tickTraced`, also returning the preorder indices of the leaves halted this tick. A halted leaf last
+    /// returned Running and was abandoned by a reactive preemption or a finishing Parallel; completed and
+    /// unticked idle leaves are excluded. Indices identify occurrences, even when leaf values are equal.
+    /// Halts are listed in the order the interpreter abandons branches, and in preorder within each branch.
+    /// A leaf may be ticked and halted in the same tick; repeated activations may produce repeated indices.
+    /// Halting calls no leaf. If a leaf raises, no result is returned and the input state stays unchanged.
+    val tickTracedWithHalts:
+        program: BtProgram<'L> ->
+        leaf: ('L -> 'B -> BtStatus * 'B) ->
+        state: BtState ->
+        blackboard: 'B ->
+            BtStatus * BtState * 'B * int list * int list

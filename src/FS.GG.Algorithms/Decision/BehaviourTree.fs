@@ -151,6 +151,7 @@ module BehaviourTree =
         (state: BtState)
         (blackboard: 'B)
         (trace: ResizeArray<int>)
+        (halted: ResizeArray<int>)
         =
         let kind = program.Kind
         let children = program.Children
@@ -170,8 +171,30 @@ module BehaviourTree =
         let descend (top: int) (child: int) =
             awaiting.[top] <- true
             push child
-        // Clears a whole subtree: memory, and the parallel results of every node below its root.
+        // Only called for a running branch being abandoned. Follow its live paths BEFORE clearing memory:
+        // a cursor selects one child; a Parallel's unfinished children are its running ones. Finished and
+        // never-visited leaves in the same subtree must not be reported as halted. The optional walk is
+        // iterative and in preorder; callers of tick/tickTraced allocate no halt collector or walk stack.
         let resetSubtree (root: int) =
+            if not (isNull halted) then
+                let pending = ResizeArray<int>()
+                pending.Add root
+                while pending.Count > 0 do
+                    let node = pending.[pending.Count - 1]
+                    pending.RemoveAt(pending.Count - 1)
+                    let kids = children.[node]
+                    match kind.[node] with
+                    | BtKind.Leaf -> halted.Add node
+                    | BtKind.Parallel ->
+                        for j in kids.Length - 1 .. -1 .. 0 do
+                            if fin.[kids.[j]] = 0 then pending.Add kids.[j]
+                    | BtKind.Sequence
+                    | BtKind.Selector
+                    | BtKind.ReactiveSequence
+                    | BtKind.ReactiveFallback ->
+                        if cur.[node] < kids.Length then pending.Add kids.[cur.[node]]
+                    | _ -> pending.Add kids.[0]
+            // Clear memory and the parallel results of every node below the root.
             for k in root .. program.SubtreeEnd.[root] - 1 do
                 cur.[k] <- 0
                 if k > root then fin.[k] <- 0
@@ -181,8 +204,9 @@ module BehaviourTree =
         // ticked to its end. There are exactly two such places, and both halt the branch by clearing its
         // subtree: a finishing Parallel halts its unfinished (still running) children, and a reactive
         // composite halts the branch that was running when an earlier child takes over (below). Cost: a tick
-        // is O(nodes it visits) plus O(size of the subtrees it halts). That is not quadratic, but it is not
-        // bounded by the visited nodes alone. A full subtree clear on every finish would cost O(depth^2) on a
+        // is O(state size) for copying BOTH cursor and finished arrays, plus O(nodes it visits) and
+        // O(size of the subtrees it halts), including the optional halted-leaf walk. It is not bounded by
+        // visited nodes alone. A full subtree clear on every finish would cost O(depth^2) on a
         // deep tree. The reference interpreter in the tests clears whole subtrees and must agree.
         let finish (status: BtStatus) =
             let top = frames.Count - 1
@@ -290,9 +314,15 @@ module BehaviourTree =
         ret, BtState(cur, fin), bb
 
     let tick (program: BtProgram<'L>) (leaf: 'L -> 'B -> BtStatus * 'B) (state: BtState) (blackboard: 'B) =
-        run program leaf state blackboard (ResizeArray())
+        run program leaf state blackboard (ResizeArray()) null
 
     let tickTraced (program: BtProgram<'L>) (leaf: 'L -> 'B -> BtStatus * 'B) (state: BtState) (blackboard: 'B) =
         let trace = ResizeArray()
-        let status, next, bb = run program leaf state blackboard trace
+        let status, next, bb = run program leaf state blackboard trace null
         status, next, bb, List.ofSeq trace
+
+    let tickTracedWithHalts (program: BtProgram<'L>) (leaf: 'L -> 'B -> BtStatus * 'B) (state: BtState) (blackboard: 'B) =
+        let trace = ResizeArray()
+        let halted = ResizeArray()
+        let status, next, bb = run program leaf state blackboard trace halted
+        status, next, bb, List.ofSeq trace, List.ofSeq halted

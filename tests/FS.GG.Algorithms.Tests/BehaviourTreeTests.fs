@@ -47,9 +47,14 @@ type private Model(tree: Tree) =
         { Index = start; End = next; Node = t; Kids = ks }
     let root = index 0 tree
     let last = System.Collections.Generic.Dictionary<int, BtStatus>()
+    // Independent observation of effect lifetimes: remember Running leaf occurrences, removing them on
+    // completion or a subtree clear. This does not infer running leaves from the library's cursor encoding.
+    let runningLeaves = System.Collections.Generic.HashSet<int>()
+    let halted = ResizeArray<int>()
     let get (d: System.Collections.Generic.Dictionary<int, int>) k = match d.TryGetValue k with | true, v -> v | _ -> 0
     let clear (t: Indexed) =
         for k in t.Index .. t.End - 1 do
+            if runningLeaves.Remove k then halted.Add k
             cursor.Remove k |> ignore
             if k > t.Index then finished.Remove k |> ignore
     /// The node count of the model's own numbering.
@@ -83,6 +88,7 @@ type private Model(tree: Tree) =
         let mutable b = bb
         let trace = ResizeArray<int>()
         last.Clear()
+        halted.Clear()
         let rec eval (t: Indexed) : BtStatus =
             let s = evalNode t
             last.[t.Index] <- s
@@ -98,6 +104,8 @@ type private Model(tree: Tree) =
                 let s, nb = leaf l b
                 b <- nb
                 trace.Add i
+                if s = BtStatus.Running then runningLeaves.Add i |> ignore
+                else runningLeaves.Remove i |> ignore
                 done' s
             | BehaviourTree.Sequence _
             | BehaviourTree.Selector _ ->
@@ -164,7 +172,7 @@ type private Model(tree: Tree) =
                     | s -> done' s
                 loop ()
         let status = eval root
-        status, b, List.ofSeq trace
+        status, b, List.ofSeq trace, List.ofSeq halted
 
 // ---------------------------------------------------------------- generators
 
@@ -244,10 +252,12 @@ let private lockstep (tree: Tree) (sc: BtStatus[][]) (ticks: int) =
     let mutable bbModel = emptyBb
     let mutable ok = model.NodeCount = program.NodeCount
     for _ in 1..ticks do
-        let s1, st, b1, tr1 = BehaviourTree.tickTraced program (scriptedLeaf sc) state bbLib
-        let s2, b2, tr2 = model.Tick(scriptedLeaf sc, bbModel)
+        let s1, st, b1, tr1, h1 = BehaviourTree.tickTracedWithHalts program (scriptedLeaf sc) state bbLib
+        let s2, b2, tr2, h2 = model.Tick(scriptedLeaf sc, bbModel)
+        let oldS, oldSt, oldBb, oldTrace = BehaviourTree.tickTraced program (scriptedLeaf sc) state bbLib
+        if (oldS, oldSt, oldBb, oldTrace) <> (s1, st, b1, tr1) then ok <- false
         let live = model.Live
-        if s1 <> s2 || b1 <> b2 || tr1 <> tr2 then ok <- false
+        if s1 <> s2 || b1 <> b2 || tr1 <> tr2 || h1 <> h2 then ok <- false
         if st.Cursors <> model.Cursors || st.Finished <> model.Finished then ok <- false
         if not (haltInvariant live parents st.Cursors st.Finished) then ok <- false
         if not (haltInvariant live parents model.Cursors model.Finished) then ok <- false
@@ -262,7 +272,7 @@ let private lockstep (tree: Tree) (sc: BtStatus[][]) (ticks: int) =
 let tests =
     testList
         "Decision.BehaviourTree"
-        [ property "equals the recursive reference interpreter over 8 ticks (status, blackboard, leaf trace and state)"
+        [ property "equals the recursive reference interpreter over 8 ticks (status, blackboard, visited/halted leaves and state)"
               (Arb.fromGen (Gen.zip treeGen scripts))
           <| fun (tree, sc) -> lockstep tree sc 8
 
@@ -330,6 +340,67 @@ let tests =
               let s, st, () = BehaviourTree.tick program leaf (BehaviourTree.initial program) ()
               Expect.equal s BtStatus.Success "one success is enough"
               Expect.equal st (BehaviourTree.initial program) "the running sequence was reset"
+
+          testCase "halt trace excludes completed and never-visited leaves in an abandoned branch"
+          <| fun () ->
+              let p = BehaviourTree.compile (
+                  BehaviourTree.Parallel(1, 2,
+                      [ BehaviourTree.Leaf "success"
+                        BehaviourTree.Sequence [ BehaviourTree.Leaf "complete"; BehaviourTree.Leaf "running"; BehaviourTree.Leaf "idle" ] ]))
+              let mutable calls = []
+              let leaf l () =
+                  calls <- l :: calls
+                  (if l = "running" then BtStatus.Running else BtStatus.Success), ()
+              let s, st, (), trace, halted = BehaviourTree.tickTracedWithHalts p leaf (BehaviourTree.initial p) ()
+              Expect.equal (s, trace, halted) (BtStatus.Success, [ 1; 3; 4 ], [ 4 ]) "only the running occurrence is cancelled"
+              Expect.equal (List.rev calls) [ "success"; "complete"; "running" ] "halting never invokes a leaf"
+              Expect.isTrue (st = BehaviourTree.initial p) "idle after finishing"
+
+          testCase "halt order follows abandonment events, then preorder; equal leaf values stay distinct"
+          <| fun () ->
+              // The inner Parallel halts node 6 first; then the root halts node 1. Both carry leaf value 0.
+              let p = BehaviourTree.compile (
+                  BehaviourTree.Parallel(1, 2,
+                      [ BehaviourTree.Leaf 0
+                        BehaviourTree.Sequence
+                            [ BehaviourTree.Leaf 1
+                              BehaviourTree.Parallel(1, 2, [ BehaviourTree.Leaf 2; BehaviourTree.Leaf 0 ]) ] ]))
+              let leaf l () = (if l = 0 then BtStatus.Running else BtStatus.Success), ()
+              let s, _, (), _, halted = BehaviourTree.tickTracedWithHalts p leaf (BehaviourTree.initial p) ()
+              Expect.equal (s, halted) (BtStatus.Success, [ 6; 1 ]) "event order rather than globally sorted indices"
+
+          testCase "repeated activations can halt the same occurrence twice in one tick"
+          <| fun () ->
+              let p = BehaviourTree.compile (BehaviourTree.Repeat(2, BehaviourTree.Parallel(1, 2, [ BehaviourTree.Leaf 0; BehaviourTree.Leaf 1 ])))
+              let leaf l () = (if l = 0 then BtStatus.Running else BtStatus.Success), ()
+              let s, _, (), trace, halted = BehaviourTree.tickTracedWithHalts p leaf (BehaviourTree.initial p) ()
+              Expect.equal (s, trace, halted) (BtStatus.Success, [ 2; 3; 2; 3 ], [ 2; 2 ]) "one halt event per activation"
+
+          testCase "preemption halts only active Parallel paths in preorder and preserves the supplied state"
+          <| fun () ->
+              let p = BehaviourTree.compile (
+                  BehaviourTree.ReactiveFallback
+                      [ BehaviourTree.Leaf 0
+                        BehaviourTree.Parallel(3, 3,
+                            [ BehaviourTree.Leaf 1
+                              BehaviourTree.Leaf 2
+                              BehaviourTree.Sequence [ BehaviourTree.Leaf 3; BehaviourTree.Leaf 4; BehaviourTree.Leaf 5 ] ]) ])
+              let leaf interrupt l () =
+                  (match l with
+                   | 0 -> if interrupt then BtStatus.Success else BtStatus.Failure
+                   | 1 | 4 -> BtStatus.Running
+                   | _ -> BtStatus.Success), ()
+              // An old API creates the running state; the new API must not require hidden tracing history.
+              let _, before, () = BehaviourTree.tick p (leaf false) (BehaviourTree.initial p) ()
+              let snapshot = before.Cursors, before.Finished
+              let s, after, (), trace, halted = BehaviourTree.tickTracedWithHalts p (leaf true) before ()
+              Expect.equal (s, trace, halted) (BtStatus.Success, [ 1 ], [ 3; 7 ]) "only running paths, including a zero-cursor leaf"
+              Expect.equal (before.Cursors, before.Finished) snapshot "input remains immutable"
+              Expect.isTrue (after = BehaviourTree.initial p) "abandoned state cleared"
+              let _, _, (), _, retryHalts = BehaviourTree.tickTracedWithHalts p (leaf true) before ()
+              Expect.equal retryHalts halted "saved states reproduce halt reports"
+              let _, _, (), _, idleHalts = BehaviourTree.tickTracedWithHalts p (leaf true) after ()
+              Expect.equal idleHalts [] "a fresh success does not halt idle branches"
 
           testCase "priority interrupt: a reactive Fallback's higher-priority branch preempts and halts the running one"
           <| fun () ->
@@ -416,10 +487,10 @@ let tests =
                   let mutable state = BehaviourTree.initial program
                   let mutable bb = emptyBb
                   [ for _ in 1..8 do
-                        let s, next, nb = BehaviourTree.tick program (scriptedLeaf sc) state bb
+                        let s, next, nb, trace, halted = BehaviourTree.tickTracedWithHalts program (scriptedLeaf sc) state bb
                         state <- next
                         bb <- nb
-                        yield s, next, nb ]
+                        yield s, next, nb, trace, halted ]
               // The same run with the raiseAt-th leaf call raising once; the failed tick is retried from the state
               // and blackboard held before it, with a leaf that no longer raises.
               let mutable calls = 0
@@ -429,16 +500,16 @@ let tests =
               let mutable state = BehaviourTree.initial program
               let mutable bb = emptyBb
               let mutable ok = true
-              for (s, refNext, refBb) in reference do
+              for (s, refNext, refBb, refTrace, refHalts) in reference do
                   let before = state.Cursors, state.Finished
                   let result =
                       try
-                          BehaviourTree.tick program flaky state bb
+                          BehaviourTree.tickTracedWithHalts program flaky state bb
                       with _ ->
                           if (state.Cursors, state.Finished) <> before then ok <- false
-                          BehaviourTree.tick program (scriptedLeaf sc) state bb
-                  let s2, next, nb = result
-                  if s2 <> s || next <> refNext || nb <> refBb then ok <- false
+                          BehaviourTree.tickTracedWithHalts program (scriptedLeaf sc) state bb
+                  let s2, next, nb, trace, halted = result
+                  if (s2, next, nb, trace, halted) <> (s, refNext, refBb, refTrace, refHalts) then ok <- false
                   state <- next
                   bb <- nb
               ok
@@ -496,8 +567,8 @@ let tests =
               Expect.equal s1 BtStatus.Running "the deep branch runs"
               Expect.equal (st1.Cursors |> List.sum) (n + 1) "a cursor at every level and at the root"
               interrupt <- true
-              let s2, st2, (), t2 = BehaviourTree.tickTraced p leaf st1 ()
-              Expect.equal (s2, t2) (BtStatus.Success, [ 1 ]) "the interrupt preempts"
+              let s2, st2, (), t2, h2 = BehaviourTree.tickTracedWithHalts p leaf st1 ()
+              Expect.equal (s2, t2, h2) (BtStatus.Success, [ 1 ], [ 2 * n + 2 ]) "the interrupt preempts only the deepest running leaf"
               // Booleans, not the 10^5-element states: a failure message stays small.
               Expect.isTrue (st2 = BehaviourTree.initial p) "the 10^5-deep running branch is halted"
               let wide = BehaviourTree.compile (BehaviourTree.ReactiveFallback(List.init n BehaviourTree.Leaf))
@@ -506,6 +577,6 @@ let tests =
               let w1, wst1, () = BehaviourTree.tick wide leafW (BehaviourTree.initial wide) ()
               Expect.equal (w1, List.head wst1.Cursors) (BtStatus.Running, n - 1) "the last child runs"
               first <- BtStatus.Success
-              let w2, wst2, (), wt2 = BehaviourTree.tickTraced wide leafW wst1 ()
-              Expect.equal (w2, wt2) (BtStatus.Success, [ 1 ]) "the first child preempts"
+              let w2, wst2, (), wt2, wh2 = BehaviourTree.tickTracedWithHalts wide leafW wst1 ()
+              Expect.equal (w2, wt2, wh2) (BtStatus.Success, [ 1 ], [ n ]) "the first child preempts only the running last leaf"
               Expect.isTrue (wst2 = BehaviourTree.initial wide) "the running last child is halted" ]

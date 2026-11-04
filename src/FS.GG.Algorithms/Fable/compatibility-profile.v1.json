@@ -81,6 +81,11 @@
       "name": "Spatial.KdTree: build, nearest, kNearest, withinRadius, inRectangle, distanceSquared (int coordinates -16383..16383)",
       "grade": "LockstepExact",
       "evidence": "fixture-schema.v1 operation 14; cases 14001-14006; FsCheck: every query equals a brute-force scan by (distance^2, X, Y, Index) with heavy ties; 10^5 collinear and duplicate points under Node's default stack"
+    },
+    {
+      "name": "Decision.BehaviourTree.tickTracedWithHalts (additive visited/halted occurrence traces, ordered by halt event then subtree preorder)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation 15; cases 15001-15032; FsCheck equality with independent Running-leaf lifetime tracking over 8 ticks and at least 3000 random trees x 24 ticks; old tickTraced parity; preemption, Parallel finish, repeated activation and saved-state cases; 10^5 deep/wide halt traversal under Node default stack"
     }
   ],
   "defaultGrade": "Unclassified",

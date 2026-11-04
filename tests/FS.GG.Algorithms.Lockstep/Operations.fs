@@ -497,7 +497,8 @@ let rec private decodeTree (r: Reader) : BehaviourTree<int> =
 /// (0 success, 1 failure, 2 running), cycled by that leaf's own call count; u32 ticks. The blackboard is the
 /// immutable per-leaf call counts. Output: u32 ticks, then per tick u8 status, list<i32> trace (preorder),
 /// leafCount i32 call counts, list<i32> cursors and list<i32> finished.
-let behaviourTree (r: Reader) (w: Writer) =
+/// Operation 15 uses the same input and additionally appends list<i32> halted leaves after each tick.
+let behaviourTree (includeHalts: bool) (r: Reader) (w: Writer) =
     let program = BehaviourTree.compile (decodeTree r)
     let leafCount = r.U32()
     let scripts = Array.init leafCount (fun _ -> Array.init (r.U32()) (fun _ -> r.U8()))
@@ -523,7 +524,11 @@ let behaviourTree (r: Reader) (w: Writer) =
     let mutable calls = Map.empty
     w.U32 ticks
     for _ in 1..ticks do
-        let s, next, bb, trace = BehaviourTree.tickTraced program leaf state calls
+        let s, next, bb, trace, halted =
+            if includeHalts then BehaviourTree.tickTracedWithHalts program leaf state calls
+            else
+                let s, next, bb, trace = BehaviourTree.tickTraced program leaf state calls
+                s, next, bb, trace, []
         state <- next
         calls <- bb
         w.U8(code s)
@@ -532,6 +537,7 @@ let behaviourTree (r: Reader) (w: Writer) =
             w.I32(calls.TryFind l |> Option.defaultValue 0)
         writeList state.Cursors
         writeList state.Finished
+        if includeHalts then writeList halted
 
 /// Operation 13: DoorGrid. Input: u8 planes, u8 side, planes*side*side u8 walkable; u32 edges, each i32 plane,
 /// x, y, u8 direction (0 east, 1 south), u8 kind (0 open, 1 blocked, 2 door), i32 extra; u32 stairs, each
@@ -646,7 +652,8 @@ let runCase (caseId: int) (operation: int) (payload: int[]) =
             | 5 -> xoshiro r body
             | 10 -> fixedSweep r body
             | 11 -> topoSort r body
-            | 12 -> behaviourTree r body
+            | 12 -> behaviourTree false r body
+            | 15 -> behaviourTree true r body
             | 13 -> doorGrid r body
             | 14 -> kdTree r body
             | 6 -> scc r body
