@@ -108,15 +108,15 @@ let private behaviourTreeReactive () =
         | 1 -> BtStatus.Success, ()
         | _ -> BtStatus.Running, ()
     let s1, st1, () = BehaviourTree.tick program (leaf false) (BehaviourTree.initial program) ()
-    let s2, st2, () = BehaviourTree.tick program (leaf true) st1 ()
+    let s2, st2, (), _, halted = BehaviourTree.tickTracedWithHalts program (leaf true) st1 ()
     let wide = BehaviourTree.compile (BehaviourTree.ReactiveFallback(List.init size BehaviourTree.Leaf))
     let leafW (first: BtStatus) (l: int) () = (if l = 0 then first elif l = size - 1 then BtStatus.Running else BtStatus.Failure), ()
     let w1, wst1, () = BehaviourTree.tick wide (leafW BtStatus.Failure) (BehaviourTree.initial wide) ()
-    let w2, wst2, () = BehaviourTree.tick wide (leafW BtStatus.Success) wst1 ()
+    let w2, wst2, (), _, whalted = BehaviourTree.tickTracedWithHalts wide (leafW BtStatus.Success) wst1 ()
     s1 = BtStatus.Running && List.sum st1.Cursors = size + 1
-    && s2 = BtStatus.Success && st2 = BehaviourTree.initial program
+    && s2 = BtStatus.Success && st2 = BehaviourTree.initial program && halted = [ 2 * size + 2 ]
     && w1 = BtStatus.Running && List.head wst1.Cursors = size - 1
-    && w2 = BtStatus.Success && wst2 = BehaviourTree.initial wide
+    && w2 = BtStatus.Success && wst2 = BehaviourTree.initial wide && whalted = [ size ]
 
 let private doorCorridor () =
     let g =

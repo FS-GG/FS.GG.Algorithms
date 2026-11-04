@@ -4,6 +4,7 @@ open FS.GG.Algorithms.Collections
 open FS.GG.Algorithms.Numerics
 open FS.GG.Algorithms.Random
 open FS.GG.Algorithms.Graph
+open FS.GG.Algorithms.Decision
 
 [<EntryPoint>]
 let main _ =
@@ -20,5 +21,10 @@ let main _ =
         match (BestFirst.dijkstra (fun i -> if i < 9 then [ i + 1, 2 ] else []) compare (fun i -> i = 9) 0).Outcome with
         | Found(p, c) -> sprintf "%d/%d" (List.length p) c
         | _ -> "none"
+    let tree = BehaviourTree.compile (BehaviourTree.Parallel(1, 2, [ BehaviourTree.Leaf 0; BehaviourTree.Leaf 1 ]))
+    let result, _, (), visited, halted =
+        BehaviourTree.tickTracedWithHalts tree (fun l () -> (if l = 0 then BtStatus.Running else BtStatus.Success), ()) (BehaviourTree.initial tree) ()
+    if result <> BtStatus.Success || visited <> [ 1; 2 ] || halted <> [ 1 ] then
+        failwith "packed halted-leaf API returned the wrong result"
     printfn "heap=%s mul=%d div=%d sqrt=%d xo=%d seed=%d path=%s" order product quotient root r0 s0 path
     0

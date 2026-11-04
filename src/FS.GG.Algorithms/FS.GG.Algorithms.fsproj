@@ -6,7 +6,7 @@
     <PackageId>FS.GG.Algorithms</PackageId>
     <AssemblyName>FS.GG.Algorithms</AssemblyName>
     <RootNamespace>FS.GG.Algorithms</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Title>FS.GG.Algorithms</Title>
     <Description>Shared algorithms for FS.GG: a frozen-order binary and indexed heap, Q16.16 fixed point, nearest-rank percentiles, general best-first search (Dijkstra, A*), iterative Tarjan SCC, union-find, priority-band arbitration and the xoshiro128** generator. FSharp.Core only; every module compiles under Fable, and LockstepExact surfaces are bit-identical on .NET and JavaScript (ADR-0098).</Description>
     <PackageTags>fsharp;algorithms;heap;priority-queue;fixed-point;pathfinding;astar;dijkstra;xoshiro;deterministic;lockstep;fable-javascript;fable-dotnet</PackageTags>

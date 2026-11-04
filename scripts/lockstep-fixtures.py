@@ -548,6 +548,36 @@ def bt_reactive_cases():
     return cases
 
 
+def bt_halt_cases():
+    """Operation 15 is additive: the existing operation 12 bytes and cases are unchanged. Replay its shapes
+    with explicit halt observations, then add event-order, repeated-activation and active-path boundaries."""
+    cases = [(15001 + i, 15, payload) for i, (_, _, payload) in enumerate(bt_cases() + bt_reactive_cases())]
+
+    def encode(tree, scripts, ticks):
+        w = W()
+        bt_encode(tree, w)
+        w.u32(len(scripts))
+        for sc in scripts:
+            w.u32(len(sc))
+            for status in sc:
+                w.u8(status)
+        return w.u32(ticks).b
+
+    S, F, R = 0, 1, 2
+    cases += [
+        # Inner halt occurs before an outer halt at a lower preorder index; duplicate leaf values.
+        (15028, 15, encode((3, 1, 2, [(0, 0), (1, [(0, 1), (3, 1, 2, [(0, 2), (0, 0)])])]), [[R], [S], [S]], 3)),
+        # A Repeat restarts a finishing Parallel twice in the same tick: repeated halt indices.
+        (15029, 15, encode((7, 2, (3, 1, 2, [(0, 0), (0, 1)])), [[R], [S]], 3)),
+        # Preemption clears a Parallel: only running children, not completed or never-ticked leaves.
+        (15030, 15, encode((10, [(0, 0), (3, 3, 3, [(0, 1), (0, 2), (1, [(0, 3), (0, 4), (0, 5)])])]),
+                           [[F, S, F, S], [R], [S], [S], [R], [S]], 6)),
+        (15031, 15, encode((0, 0), [[R, S, F]], 6)),
+        (15032, 15, encode((10, []), [], 2)),
+    ]
+    return cases
+
+
 def door_case(cid, planes, side, walk, edges, stairs, diagonal, ortho, diag, start, goal, heuristic, budget):
     w = W().u8(planes).u8(side)
     w.b += bytes(walk)
@@ -670,7 +700,7 @@ def all_cases():
     # Order is append-only: PR 1's cases (operations 1-5 and the operation 10 sweep) stay a byte-identical prefix.
     return (heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases()
             + sweep_cases() + scc_cases() + union_find_cases() + percentile_cases() + arbitration_cases()
-            + topo_cases() + bt_cases() + door_cases() + kd_cases() + door_cost_cases() + bt_reactive_cases())
+            + topo_cases() + bt_cases() + door_cases() + kd_cases() + door_cost_cases() + bt_reactive_cases() + bt_halt_cases())
 
 
 def encode_cases(cases) -> bytes:
@@ -1014,10 +1044,13 @@ def bt_number(node, start):
     return nxt
 
 
-def py_bt_tick(root, cursor, fin, script, calls, trace):
+def py_bt_tick(root, cursor, fin, script, calls, trace, running=None, halted=None):
     """The oracle's recursive interpreter of the documented BehaviourTree semantics."""
     def clear(t):
         for k in range(t["index"], t["end"]):
+            if running is not None and k in running:
+                running.remove(k)
+                halted.append(k)
             cursor[k] = 0
             if k > t["index"]:
                 fin[k] = 0
@@ -1036,6 +1069,11 @@ def py_bt_tick(root, cursor, fin, script, calls, trace):
             s = sc[calls[l] % len(sc)]
             calls[l] += 1
             trace.append(i)
+            if running is not None:
+                if s == 2:
+                    running.add(i)
+                else:
+                    running.discard(i)
             return done(t, s)
         if kind in (1, 2):
             go = 0 if kind == 1 else 1
@@ -1425,16 +1463,17 @@ def oracle_payload(op: int, r: R) -> W:
             for a in acts:
                 for x in a:
                     w.i32(x)
-    elif op == 12:
+    elif op in (12, 15):
         root = bt_decode(r)
         n = bt_number(root, 0)
         script = [[r.u8() for _ in range(r.u32())] for _ in range(r.u32())]
         ticks = r.u32()
         cursor, fin, calls = [0] * n, [0] * n, [0] * len(script)
+        running = set() if op == 15 else None
         w.u32(ticks)
         for _ in range(ticks):
-            trace = []
-            s = py_bt_tick(root, cursor, fin, script, calls, trace)
+            trace, halted = [], []
+            s = py_bt_tick(root, cursor, fin, script, calls, trace, running, halted)
             w.u8(s).u32(len(trace))
             for x in trace:
                 w.i32(x)
@@ -1443,6 +1482,10 @@ def oracle_payload(op: int, r: R) -> W:
             for arr in (cursor, fin):
                 w.u32(len(arr))
                 for x in arr:
+                    w.i32(x)
+            if op == 15:
+                w.u32(len(halted))
+                for x in halted:
                     w.i32(x)
     elif op == 14:
         pts = [(r.i32(), r.i32()) for _ in range(r.u32())]
