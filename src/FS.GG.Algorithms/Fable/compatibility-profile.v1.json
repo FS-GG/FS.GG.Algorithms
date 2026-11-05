@@ -86,6 +86,11 @@
       "name": "Decision.BehaviourTree.tickTracedWithHalts (additive visited/halted occurrence traces, ordered by halt event then subtree preorder)",
       "grade": "LockstepExact",
       "evidence": "fixture-schema.v1 operation 15; cases 15001-15032; FsCheck equality with independent Running-leaf lifetime tracking over 8 ticks and at least 3000 random trees x 24 ticks; old tickTraced parity; preemption, Parallel finish, repeated activation and saved-state cases; 10^5 deep/wide halt traversal under Node default stack"
+    },
+    {
+      "name": "Decision.UtilityAi: score, value, evaluate, invert, product, choose (bounded F2 scores; three monotone responses; ordered multiplication; first-input tie break)",
+      "grade": "LockstepExact",
+      "evidence": "fixture-schema.v1 operation16; cases16001-16013; FsCheck against independent exact integer oracles; exhaustive65537-point monotonicity;100000 considerations/actions under Node default stack"
     }
   ],
   "defaultGrade": "Unclassified",

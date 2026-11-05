@@ -13,6 +13,7 @@
     <Compile Include="Oracles.fs" />
     <Compile Include="HeapTests.fs" />
     <Compile Include="FixedTests.fs" />
+    <Compile Include="UtilityAiTests.fs" />
     <Compile Include="XoshiroTests.fs" />
     <Compile Include="BestFirstTests.fs" />
     <Compile Include="PercentileTests.fs" />

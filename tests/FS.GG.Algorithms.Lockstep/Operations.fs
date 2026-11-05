@@ -637,6 +637,24 @@ let kdTree (r: Reader) (w: Writer) =
             w.I32 p.Y
             w.I32 p.Index
 
+/// Operation 16: bounded scores, responses, quadratic complement, ordered product and first maximum.
+let utilityAi (r: Reader) (w: Writer) =
+    let count = r.U32()
+    let inputs = List.init count (fun _ -> Fixed.ofRaw (r.I32()))
+    w.U32 count
+    for x in inputs do
+        w.I32(Fixed.raw (UtilityAi.value (UtilityAi.score x)))
+        for c in [ UtilityCurve.Linear; UtilityCurve.Quadratic; UtilityCurve.SquareRoot ] do
+            w.I32(Fixed.raw (UtilityAi.value (UtilityAi.evaluate c x)))
+        w.I32(Fixed.raw (UtilityAi.value (UtilityAi.invert (UtilityAi.evaluate UtilityCurve.Quadratic x))))
+    w.I32(Fixed.raw (UtilityAi.value (UtilityAi.product (List.map (UtilityAi.evaluate UtilityCurve.Quadratic) inputs))))
+    match UtilityAi.choose (List.mapi (fun i x -> i, UtilityAi.score x) inputs) with
+    | None -> w.U8 0
+    | Some(i, score) ->
+        w.U8 1
+        w.I32 i
+        w.I32(Fixed.raw (UtilityAi.value score))
+
 /// Runs one case and returns its canonical record:
 /// u32 recordByteCount (bytes after this field), u32 caseId, u16 operationId, u16 outcomeTag, payload.
 let runCase (caseId: int) (operation: int) (payload: int[]) =
@@ -654,6 +672,7 @@ let runCase (caseId: int) (operation: int) (payload: int[]) =
             | 11 -> topoSort r body
             | 12 -> behaviourTree false r body
             | 15 -> behaviourTree true r body
+            | 16 -> utilityAi r body
             | 13 -> doorGrid r body
             | 14 -> kdTree r body
             | 6 -> scc r body

@@ -40,6 +40,8 @@
     <Compile Include="Spatial/KdTree.fs" />
     <Compile Include="Decision/Arbitration.fsi" />
     <Compile Include="Decision/Arbitration.fs" />
+    <Compile Include="Decision/UtilityAi.fsi" />
+    <Compile Include="Decision/UtilityAi.fs" />
     <Compile Include="Decision/BehaviourTree.fsi" />
     <Compile Include="Decision/BehaviourTree.fs" />
   </ItemGroup>
