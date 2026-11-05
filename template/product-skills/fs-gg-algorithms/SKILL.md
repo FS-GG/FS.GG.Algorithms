@@ -23,6 +23,8 @@ Each record names its module, signature, costs, selection limits, original F# ex
 tests and benchmark evidence or an explicitly owed measurement. Records describe their
 cited revision; they do not prove that a package is installed, current or published.
 Resolve the workspace's actual package pin before using the example.
+An entry marked unreleased source requires its cited implementation; its example does not
+imply the API exists in a public package.
 
 Choose the grade for the **specific operation**, not the module name. LockstepExact may
 depend on deterministic callbacks and integer costs. Portable does not promise identical

@@ -37,3 +37,5 @@ building an index. SpatialGrid is Portable; it is not a lockstep byte-equality c
 Use SCC for cycles, UnionFind for equivalence components, and topological sort/CPM for a DAG's
 precedence and critical path. Use priority arbitration for ownership/pre-emption and a behaviour
 tree for execution flow; reactive and memory composites have different interruption semantics.
+Utility AI scores a caller-defined set of actions; it does not discover a plan or execute effects.
+Its current entry requires unreleased protected source, so check availability before adoption.

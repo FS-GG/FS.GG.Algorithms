@@ -9,7 +9,7 @@
         },
         {
           "path": "SKILL.md",
-          "sha256": "f8fe6ffe2ef098c4c937231d0f579775ee4f3cfacdecd93d4d693ec0aa1800b7"
+          "sha256": "0dd7c228a05d698b047710a4329433ca9001c6e9d5668b4ff99d550cba0dde70"
         },
         {
           "path": "pack/README.md",
@@ -17,7 +17,7 @@
         },
         {
           "path": "pack/catalog.json",
-          "sha256": "ad7ef2bc79c6d8ca08194e587e07ed7439e02dc4e24eabe39fc1b10319bc342c"
+          "sha256": "0b28d12cccc455ad7c847bf95089ea6966b5a784176bbea6a6b5bb71caaee806"
         },
         {
           "path": "pack/records/0af5006c14b6db2c670cceb2c33a6e0e2d7de67cf2482f62d2c81885fae6f39a.json",
@@ -84,6 +84,10 @@
           "sha256": "accb874c365f64b2c1d6a42303bbd2d49576b3f99b04ff920b14a934e0b0e067"
         },
         {
+          "path": "pack/records/b37a08d6c7b8b5bd616a203d656dd0e922033339ce774237d21005b124f98e37.json",
+          "sha256": "b37a08d6c7b8b5bd616a203d656dd0e922033339ce774237d21005b124f98e37"
+        },
+        {
           "path": "pack/records/bcbda6c0b06c0c95cff60d1b5051766dd4b7e5e4de4bc7dbb26f7b68f942d5f9.json",
           "sha256": "bcbda6c0b06c0c95cff60d1b5051766dd4b7e5e4de4bc7dbb26f7b68f942d5f9"
         },
@@ -94,6 +98,10 @@
         {
           "path": "pack/records/d323f73bd436c6705da1c0910e6b80272e8f08ff447bbc5126f064021e9228e6.json",
           "sha256": "d323f73bd436c6705da1c0910e6b80272e8f08ff447bbc5126f064021e9228e6"
+        },
+        {
+          "path": "pack/records/df45f72c2de21a90ea2445fea0dec2c91a3814b386165c2f9c2aa80675825187.json",
+          "sha256": "df45f72c2de21a90ea2445fea0dec2c91a3814b386165c2f9c2aa80675825187"
         },
         {
           "path": "pack/records/ea8ceb1c31d4b79de099ae322656194a571930de37811212175ba0d59984feb3.json",
@@ -113,14 +121,14 @@
         },
         {
           "path": "references/taxonomy.md",
-          "sha256": "84bb8c616a598d2d8c3f2763b3436d0def8cf3875f82e022c01ff4b2bd8e8a63"
+          "sha256": "f5f29d3710f355dcc6002a3f4dca48e97e2808d538b3f334e3ce236b14d1ecfe"
         }
       ],
       "id": "fs-gg-algorithms",
       "materializes-when": "profile in [game, sample-pack] or template == fable-game",
       "resolvablePath": ".agents/skills/fs-gg-algorithms/SKILL.md",
       "scope": "product",
-      "sha256": "f8fe6ffe2ef098c4c937231d0f579775ee4f3cfacdecd93d4d693ec0aa1800b7",
+      "sha256": "0dd7c228a05d698b047710a4329433ca9001c6e9d5668b4ff99d550cba0dde70",
       "supplied-by": "template/product-skills/fs-gg-algorithms/"
     }
   ]

@@ -113,11 +113,13 @@ class DeliveryTests(unittest.TestCase):
         self.assertNotEqual(altered.returncode, 0)
         record.write_bytes(original)
         catalog = json.loads((archive / 'catalog.json').read_bytes())
-        # Remove two real entries, retaining a fully valid canonical 14-record Atlas archive.
+        # Remove whole unlinked active entries, retaining a valid Atlas archive with 14 active techniques.
         records = {digest: json.loads((archive / 'records' / (digest + '.json')).read_bytes()) for digest in catalog['records']}
         predecessors = {digest for record in records.values() for digest in record['supersedes']}
-        removable = [digest for digest, record in records.items() if not record['supersedes'] and digest not in predecessors][:2]
-        self.assertEqual(len(removable), 2)
+        active_count = sum(digest not in predecessors for digest in records)
+        remove_count = active_count - 14
+        removable = [digest for digest, record in records.items() if not record['supersedes'] and digest not in predecessors][:remove_count]
+        self.assertEqual(len(removable), remove_count)
         for digest in removable:
             (archive / 'records' / (digest + '.json')).unlink()
         catalog['records'] = [digest for digest in catalog['records'] if digest not in removable]
