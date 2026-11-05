@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -18,7 +19,57 @@ stage = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stage)
 
 
+def refuse_job_runner_context(workflow):
+    """Focused check for the two maintained workflows' block-style job env mappings.
+
+    This is not a YAML validator. GitHub's context-availability rule excludes runner from
+    jobs.<job_id>.env; the same context IS allowed at step env/with. The original native
+    zero-job compilation failure is the retained negative input for this narrow regression.
+    """
+    in_jobs = False
+    in_job_env = False
+    for number, line in enumerate(workflow.splitlines(), 1):
+        if line == 'jobs:':
+            in_jobs = True
+            continue
+        if not in_jobs or not line.strip() or line.lstrip().startswith('#'):
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent <= 4:
+            in_job_env = line.startswith('    env:')
+        if in_job_env and re.search(r'\$\{\{[^}]*\brunner\.', line):
+            raise ValueError(f'runner context is unavailable in job env at line {number}')
+
+
 class DeliveryTests(unittest.TestCase):
+
+    def test_workflow_runner_context_and_candidate_checkout_regression(self):
+        workflow_path = '.github/workflows/skills-package.yml'
+        current = (ROOT / workflow_path).read_text()
+        release = (ROOT / '.github/workflows/release-skills.yml').read_text()
+        # Immutable actual first failing producer, not a fabricated lookalike or a self-comparison.
+        original = subprocess.run(
+            ['git', '-C', str(ROOT), 'show',
+             'e36318b4687e25a6531bbd98581eb722bdb51b85:' + workflow_path],
+            capture_output=True, text=True, check=True).stdout
+        with self.assertRaisesRegex(ValueError, 'runner context is unavailable in job env'):
+            refuse_job_runner_context(original)
+        refuse_job_runner_context(current)
+        refuse_job_runner_context(release)
+        # Preserve both the actual candidate checkout and the private temporary package consumer path.
+        self.assertIn('ref: ${{ github.event.pull_request.head.sha || github.sha }}', current)
+        self.assertIn('fetch-depth: 0', current)
+        self.assertIn('        env:\n          NUGET_PACKAGES: ${{ runner.temp }}/algorithms-skills-packages\n'
+                      '          DOTNET_CLI_HOME: ${{ runner.temp }}/algorithms-skills-dotnet', current)
+        self.assertIn('run: bash src/FS.GG.Algorithms.Skills/verify-package.sh', current)
+        # A regression moving the corrected block back to job scope must refuse again.
+        planted = current.replace('        env:\n          NUGET_PACKAGES:',
+                                  '    env:\n      NUGET_PACKAGES:', 1)
+        with self.assertRaisesRegex(ValueError, 'runner context is unavailable in job env'):
+            refuse_job_runner_context(planted)
+        # The release workflow's runner.temp is already legal at steps.upload-artifact.with.path.
+        self.assertIn('          path: ${{ runner.temp }}/readback/*.nupkg', release)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
