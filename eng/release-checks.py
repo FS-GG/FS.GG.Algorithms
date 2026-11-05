@@ -15,6 +15,8 @@ eng/release-checks.test.py can exercise every route against mocked responses.
   release-checks.py compare-held HELD_NUPKG ARCHIVE_NUPKG     exit 1 unless the bytes are identical
 
 Exit codes: 0 ok, 1 refused, 2 usage. Pure stdlib.
+Prefix a command with --package FS.GG.Algorithms.Skills for the separate skills channel.
+The default library identity and its existing caller contract remain unchanged.
 """
 from __future__ import annotations
 
@@ -62,9 +64,9 @@ def base_address(index: str, auth: tuple[str, str] | None) -> str:
         refuse(f"service index {index} has no PackageBaseAddress")
 
 
-def holds(index: str, version: str, auth: tuple[str, str] | None) -> bool:
+def holds(index: str, version: str, auth: tuple[str, str] | None, package: str = PACKAGE) -> bool:
     v = version.lower()
-    url = f"{base_address(index, auth)}/{PACKAGE}/{v}/{PACKAGE}.{v}.nupkg"
+    url = f"{base_address(index, auth)}/{package}/{v}/{package}.{v}.nupkg"
     status, _ = http_status(url, auth)
     if status == 200:
         return True
@@ -74,13 +76,22 @@ def holds(index: str, version: str, auth: tuple[str, str] | None) -> bool:
 
 
 def main(argv: list[str]) -> int:
+    package = PACKAGE
+    if len(argv) > 1 and argv[1] == "--package":
+        if len(argv) < 4:
+            print(__doc__, file=sys.stderr)
+            return 2
+        if argv[2] not in ("FS.GG.Algorithms", "FS.GG.Algorithms.Skills"):
+            refuse("package must name the library or its separate Skills channel")
+        package = argv[2].lower()
+        argv = [argv[0], *argv[3:]]
     if len(argv) == 4 and argv[1] == "feed-state":
         version, user = argv[2], argv[3]
         token = os.environ.get("GITHUB_TOKEN", "")
         if not token:
             refuse("GITHUB_TOKEN is not set")
-        github = holds(GITHUB_INDEX, version, (user, token))
-        nuget = holds(NUGET_INDEX, version, None)
+        github = holds(GITHUB_INDEX, version, (user, token), package)
+        nuget = holds(NUGET_INDEX, version, None, package)
         print(f"github={str(github).lower()} nuget={str(nuget).lower()}")
         return 0
     if len(argv) == 4 and argv[1] == "fresh-publish-allowed":
@@ -105,6 +116,8 @@ def main(argv: list[str]) -> int:
             # A refused or failed publish never pushed anything, so it cannot be the original of what a feed holds.
             "the GitHub Packages push succeeded": state.get("githubPackagesPush") == "success",
         }
+        if package == "fs.gg.algorithms.skills":
+            checks["package matches the Skills channel"] = state.get("package") == "FS.GG.Algorithms.Skills"
         failed = [name for name, ok in checks.items() if not ok]
         if failed:
             refuse("the resume source is not the original publish of this archive: " + "; ".join(failed))
@@ -116,7 +129,7 @@ def main(argv: list[str]) -> int:
         if not token:
             refuse("GITHUB_TOKEN is not set")
         v = version.lower()
-        url = f"{base_address(GITHUB_INDEX, (user, token))}/{PACKAGE}/{v}/{PACKAGE}.{v}.nupkg"
+        url = f"{base_address(GITHUB_INDEX, (user, token))}/{package}/{v}/{package}.{v}.nupkg"
         status, body = http_status(url, (user, token))
         if status != 200 or not body:
             refuse(f"{url} answered {status or 'no response'} while fetching the held copy")
