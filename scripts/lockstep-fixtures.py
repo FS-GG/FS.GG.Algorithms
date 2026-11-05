@@ -696,11 +696,27 @@ def door_cost_cases():
     return cases
 
 
+def utility_cases():
+    vectors = [[], [0], [65536], [0, 0], [65536, 65536], [1, 32768],
+               [I32_MIN, -1, 0, 1, 32767, 32768, 32769, 65535, 65536, 65537, I32_MAX],
+               list(range(0, 65537, 257)) + [65536]]
+    rng = Lcg(16001)
+    for n in [3, 7, 32, 100, 1000]:
+        vectors.append([s32(rng.next()) if i % 3 == 0 else rng.below(65537) for i in range(n)])
+    cases = []
+    for i, values in enumerate(vectors):
+        w = W().u32(len(values))
+        for v in values:
+            w.i32(v)
+        cases.append((16001 + i, 16, w.b))
+    return cases
+
+
 def all_cases():
     # Order is append-only: PR 1's cases (operations 1-5 and the operation 10 sweep) stay a byte-identical prefix.
     return (heap_script_cases() + indexed_script_cases() + fixed_cases() + grid_cases() + xoshiro_cases()
             + sweep_cases() + scc_cases() + union_find_cases() + percentile_cases() + arbitration_cases()
-            + topo_cases() + bt_cases() + door_cases() + kd_cases() + door_cost_cases() + bt_reactive_cases() + bt_halt_cases())
+            + topo_cases() + bt_cases() + door_cases() + kd_cases() + door_cost_cases() + bt_reactive_cases() + bt_halt_cases() + utility_cases())
 
 
 def encode_cases(cases) -> bytes:
@@ -1487,6 +1503,21 @@ def oracle_payload(op: int, r: R) -> W:
                 w.u32(len(halted))
                 for x in halted:
                     w.i32(x)
+    elif op == 16:
+        import math
+        xs = [max(0, min(65536, r.i32())) for _ in range(r.u32())]
+        w.u32(len(xs))
+        product = 65536
+        for x in xs:
+            quadratic = (x * x + 32768) // 65536
+            w.i32(x).i32(x).i32(quadratic).i32(math.isqrt(x * 65536)).i32(65536 - quadratic)
+            product = (product * quadratic + 32768) // 65536
+        w.i32(product)
+        if xs:
+            best = max(xs)
+            w.u8(1).i32(xs.index(best)).i32(best)
+        else:
+            w.u8(0)
     elif op == 14:
         pts = [(r.i32(), r.i32()) for _ in range(r.u32())]
         n = r.u32()

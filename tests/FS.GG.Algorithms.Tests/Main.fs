@@ -24,6 +24,7 @@ let main argv =
         "FS.GG.Algorithms"
         ([ HeapTests.tests
            FixedTests.tests
+           UtilityAiTests.tests
            XoshiroTests.tests
            BestFirstTests.tests
            PercentileTests.tests

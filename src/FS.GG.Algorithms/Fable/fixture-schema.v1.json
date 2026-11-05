@@ -99,14 +99,20 @@
       "operation": "BehaviourTree.tickTracedWithHalts over several ticks",
       "input": "the tree in preorder (u8 kind: 0 leaf i32 id | 1 sequence, 2 selector: u32 n, children | 3 parallel: i32 successAt, i32 failureAt, u32 n, children | 4 invert, 5 forceSuccess, 6 forceFailure: child | 7 repeat, 8 retry: i32 count, child | 9 reactive sequence, 10 reactive fallback: u32 n, children), u32 leafCount and per leaf list<u8> status script (0 success, 1 failure, 2 running) cycled by that leaf's call count, u32 ticks",
       "payload": "u32 ticks, then per tick u8 status, list<i32> leaf trace (preorder), leafCount i32 call counts (the blackboard), list<i32> cursors, list<i32> finished; each tick record ends with list<i32> halted leaf preorder indices in abandonment-event order, preorder within each abandoned branch"
+    },
+    {
+      "id": 16,
+      "operation": "UtilityAi bounded scores, curves, complement, ordered product, stable choose",
+      "input": "list<i32> raw Fixed values",
+      "payload": "u32 n; per input five i32: score, linear, quadratic, square root, inverse quadratic; i32 product of quadratic scores; option<i32 first-max index, i32 score>"
     }
   ],
   "inputs": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/cases.bin",
-  "inputsSha256": "2a4441ff6995d4befeb81114e0ccb89aeb76461b44784f493ce128114fa78312",
+  "inputsSha256": "78cccdc53b5636843ea5cbc10d7a394b9cc879bf6583133abcaff46fb62b0588",
   "inputsGenerator": "scripts/lockstep-fixtures.py generate (fixed constants and a 32-bit LCG; no clock, network or host randomness)",
   "oracle": "tests/FS.GG.Algorithms.Lockstep/fixtures/v1/expected.bin",
-  "oracleSha256": "ec649c3276d56b9de628725b1ff39f637066910592229a9887b9f914e24b06c7",
-  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; Kahn on Python's heapq with CPM by definition for 11; a recursive Python behaviour-tree interpreter for 12 and 15 (reactive composites halt every later child; 15 independently tracks Running leaf lifetimes and records them on clear, without inferring them from cursors); exact neighbour lists from the rules, Dijkstra on heapq, path validity and settle bounds for 13; a brute-force scan by (distance^2, x, y, index) for 14; optimal cost, path validity and settle order for 4",
+  "oracleSha256": "3f11cac32514280a395aa7694cdb3e8775d464ae7619d0db919d71e419a0e296",
+  "independentOracle": "scripts/lockstep-fixtures.py oracle: exact Python integers for operations 1, 2, 3, 5, 7, 8 and 10 (the 10^5-pair sweep recomputed exactly); a recursive Python Tarjan for 6; an independent Python model of the arbitration rules for 9; Kahn on Python's heapq with CPM by definition for 11; a recursive Python behaviour-tree interpreter for 12 and 15 (reactive composites halt every later child; 15 independently tracks Running leaf lifetimes and records them on clear, without inferring them from cursors); exact neighbour lists from the rules, Dijkstra on heapq, path validity and settle bounds for 13; a brute-force scan by (distance^2, x, y, index) for 14; optimal cost, path validity and settle order for 4; exact Python integer arithmetic and math.isqrt for operation16 (utility score clamping, curves, ordered rounded product and first-max tie selection)",
   "outcomeTags": {
     "0": "operation completed normally",
     "1": "operation refused its input (an exception); the payload is empty"
