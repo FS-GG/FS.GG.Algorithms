@@ -1,0 +1,6 @@
+<Project>
+  <!-- Content handle only. SDD embeds the closed manifest and skills/**/* at build time. -->
+  <PropertyGroup>
+    <FsggAlgorithmsSkillsContentDir Condition="'$(FsggAlgorithmsSkillsContentDir)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../algorithms-skills'))</FsggAlgorithmsSkillsContentDir>
+  </PropertyGroup>
+</Project>

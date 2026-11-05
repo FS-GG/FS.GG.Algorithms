@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Independent content-only owner channel (ADR0098), not a library version bump. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>FS.GG.Algorithms.Skills</PackageId>
+    <Version>0.1.0</Version>
+    <IsPackable>true</IsPackable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnablePackageValidation>false</EnablePackageValidation>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- The owner payload includes .gitattributes to preserve Atlas's exact byte domain. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <Description>FS.GG algorithm selection skill and content-addressed Atlas knowledge pack, delivered through the SDD owner-skill channel.</Description>
+    <PackageTags>fsgg;algorithms;skills;atlas</PackageTags>
+    <SkillsStagingDir>$(BaseIntermediateOutputPath)skills-staging</SkillsStagingDir>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddSkillsContent</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Remove="FSharp.Core" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="build/FS.GG.Algorithms.Skills.props" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+  <Target Name="StageSkills" BeforeTargets="Pack">
+    <Exec Command="python3 &quot;$(MSBuildProjectDirectory)/stage-skills.py&quot; &quot;$(SkillsStagingDir)&quot;" />
+  </Target>
+  <Target Name="AddSkillsContent" DependsOnTargets="StageSkills">
+    <ItemGroup>
+      <_SkillsStaged Include="$(SkillsStagingDir)/**/*" />
+      <TfmSpecificPackageFile Include="@(_SkillsStaged)">
+        <PackagePath>algorithms-skills/</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+</Project>

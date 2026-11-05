@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 2,
+  "skills": [
+    {
+      "files": [
+        {
+          "path": ".gitattributes",
+          "sha256": "27942b53a8654079faf3180fe96cb09d25fbd0b2ac34e05b937d9b5355ab7021"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "f8fe6ffe2ef098c4c937231d0f579775ee4f3cfacdecd93d4d693ec0aa1800b7"
+        },
+        {
+          "path": "pack/README.md",
+          "sha256": "4d55b75d1341f0e6df7d9de7381c26dfbdd56f54f0312f888c35da8fceacaff6"
+        },
+        {
+          "path": "pack/catalog.json",
+          "sha256": "ad7ef2bc79c6d8ca08194e587e07ed7439e02dc4e24eabe39fc1b10319bc342c"
+        },
+        {
+          "path": "pack/records/0af5006c14b6db2c670cceb2c33a6e0e2d7de67cf2482f62d2c81885fae6f39a.json",
+          "sha256": "0af5006c14b6db2c670cceb2c33a6e0e2d7de67cf2482f62d2c81885fae6f39a"
+        },
+        {
+          "path": "pack/records/12d3d3baacd501a687df793a9ff5b4f831f41c461e23b946e37a81407d0acc53.json",
+          "sha256": "12d3d3baacd501a687df793a9ff5b4f831f41c461e23b946e37a81407d0acc53"
+        },
+        {
+          "path": "pack/records/156a204da1e28d51a7b81ddc0315d3e8f890ed5b1650b482f842de71c6128bac.json",
+          "sha256": "156a204da1e28d51a7b81ddc0315d3e8f890ed5b1650b482f842de71c6128bac"
+        },
+        {
+          "path": "pack/records/17e79df9474cc193aef70de08f3abb1a25d128e52e0099409b8a5d1adbc6bac3.json",
+          "sha256": "17e79df9474cc193aef70de08f3abb1a25d128e52e0099409b8a5d1adbc6bac3"
+        },
+        {
+          "path": "pack/records/28f0759051b2ca853489e9a0064d3f7d36b9ef76931991c13df2ac064443a792.json",
+          "sha256": "28f0759051b2ca853489e9a0064d3f7d36b9ef76931991c13df2ac064443a792"
+        },
+        {
+          "path": "pack/records/354f225b81103c3a530fa1bfaa0812ea8941982eff7619815b865e10b8a527be.json",
+          "sha256": "354f225b81103c3a530fa1bfaa0812ea8941982eff7619815b865e10b8a527be"
+        },
+        {
+          "path": "pack/records/3f8a693e4a24909c3bf7b3560c47e67c425cad9d7a7f46ca023b87df1f4b1382.json",
+          "sha256": "3f8a693e4a24909c3bf7b3560c47e67c425cad9d7a7f46ca023b87df1f4b1382"
+        },
+        {
+          "path": "pack/records/412539b4941feb90bb5c2d471c8cb56d1b23a935e40f908d3fdb94bc229d9590.json",
+          "sha256": "412539b4941feb90bb5c2d471c8cb56d1b23a935e40f908d3fdb94bc229d9590"
+        },
+        {
+          "path": "pack/records/488c47c24c2ef49c7ba938db8f6d091264f09cac0f5b330240650bc1dfb55414.json",
+          "sha256": "488c47c24c2ef49c7ba938db8f6d091264f09cac0f5b330240650bc1dfb55414"
+        },
+        {
+          "path": "pack/records/4cdfaa29fc6d9ffe5cf605b4c67e8d1a1595c62b2504f655cc5cca8c79a46ea2.json",
+          "sha256": "4cdfaa29fc6d9ffe5cf605b4c67e8d1a1595c62b2504f655cc5cca8c79a46ea2"
+        },
+        {
+          "path": "pack/records/58aa5235d5a9d5e312dd2d5ef030a5d43044060466c3a747d8138176fed1d5ca.json",
+          "sha256": "58aa5235d5a9d5e312dd2d5ef030a5d43044060466c3a747d8138176fed1d5ca"
+        },
+        {
+          "path": "pack/records/72ebcba43d983dc0f0e1bd2d1c458f1cd82b1795b6cd06ee1458ae50cf5233b1.json",
+          "sha256": "72ebcba43d983dc0f0e1bd2d1c458f1cd82b1795b6cd06ee1458ae50cf5233b1"
+        },
+        {
+          "path": "pack/records/74f6fe79d061e5fe31687912436d8d7a25682cbf2832c0c2128df970e43d6b0c.json",
+          "sha256": "74f6fe79d061e5fe31687912436d8d7a25682cbf2832c0c2128df970e43d6b0c"
+        },
+        {
+          "path": "pack/records/8e7aad820c9f72455d23e74301aa362e9575a5078b16fe22d93c9536b8eb8306.json",
+          "sha256": "8e7aad820c9f72455d23e74301aa362e9575a5078b16fe22d93c9536b8eb8306"
+        },
+        {
+          "path": "pack/records/959e4ce68f66497d8822816fd7d182b40f6e0bc22cc1da332b16fb430db0e715.json",
+          "sha256": "959e4ce68f66497d8822816fd7d182b40f6e0bc22cc1da332b16fb430db0e715"
+        },
+        {
+          "path": "pack/records/accb874c365f64b2c1d6a42303bbd2d49576b3f99b04ff920b14a934e0b0e067.json",
+          "sha256": "accb874c365f64b2c1d6a42303bbd2d49576b3f99b04ff920b14a934e0b0e067"
+        },
+        {
+          "path": "pack/records/bcbda6c0b06c0c95cff60d1b5051766dd4b7e5e4de4bc7dbb26f7b68f942d5f9.json",
+          "sha256": "bcbda6c0b06c0c95cff60d1b5051766dd4b7e5e4de4bc7dbb26f7b68f942d5f9"
+        },
+        {
+          "path": "pack/records/cd700468338b599d6c2b2c4a555f5cc008973cc6b8c54b1af3419484b7aa9f3b.json",
+          "sha256": "cd700468338b599d6c2b2c4a555f5cc008973cc6b8c54b1af3419484b7aa9f3b"
+        },
+        {
+          "path": "pack/records/d323f73bd436c6705da1c0910e6b80272e8f08ff447bbc5126f064021e9228e6.json",
+          "sha256": "d323f73bd436c6705da1c0910e6b80272e8f08ff447bbc5126f064021e9228e6"
+        },
+        {
+          "path": "pack/records/ea8ceb1c31d4b79de099ae322656194a571930de37811212175ba0d59984feb3.json",
+          "sha256": "ea8ceb1c31d4b79de099ae322656194a571930de37811212175ba0d59984feb3"
+        },
+        {
+          "path": "pack/records/f7dd963bc1ae2b0edb402d752e25ae8c0151b4794d08053eac2d516aeb3469d2.json",
+          "sha256": "f7dd963bc1ae2b0edb402d752e25ae8c0151b4794d08053eac2d516aeb3469d2"
+        },
+        {
+          "path": "pack/records/fae7e508ab935acadf88f381edfe6556823406ef57c85e7cf0c4e3052558efa2.json",
+          "sha256": "fae7e508ab935acadf88f381edfe6556823406ef57c85e7cf0c4e3052558efa2"
+        },
+        {
+          "path": "references/contributing.md",
+          "sha256": "1e1aef9d8cbf021e020115fdd4d0a73f87d66158b097b59e96e90267cf7fd81f"
+        },
+        {
+          "path": "references/taxonomy.md",
+          "sha256": "84bb8c616a598d2d8c3f2763b3436d0def8cf3875f82e022c01ff4b2bd8e8a63"
+        }
+      ],
+      "id": "fs-gg-algorithms",
+      "materializes-when": "profile in [game, sample-pack] or template == fable-game",
+      "resolvablePath": ".agents/skills/fs-gg-algorithms/SKILL.md",
+      "scope": "product",
+      "sha256": "f8fe6ffe2ef098c4c937231d0f579775ee4f3cfacdecd93d4d693ec0aa1800b7",
+      "supplied-by": "template/product-skills/fs-gg-algorithms/"
+    }
+  ]
+}
