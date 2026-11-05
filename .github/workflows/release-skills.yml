@@ -137,7 +137,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dotnet pack src/FS.GG.Algorithms.Skills/FS.GG.Algorithms.Skills.csproj -c Release --no-restore -o artifacts/packages
+          dotnet pack src/FS.GG.Algorithms.Skills/FS.GG.Algorithms.Skills.csproj -c Release --no-restore -p:UseSharedCompilation=false -nodeReuse:false -o artifacts/packages
           archive="artifacts/packages/FS.GG.Algorithms.Skills.${{ steps.v.outputs.version }}.nupkg"
           test -s "$archive"
           bash src/FS.GG.Algorithms.Skills/verify-package.sh --archive "$archive"

@@ -22,6 +22,7 @@ if [ -z "${FSGG_SKILLS_NUGET_CONFIG:-}" ]; then
 XML
 fi
 export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_GENERATE_ASPNET_CERTIFICATE=false
+export MSBUILDDISABLENODEREUSE=1 DOTNET_CLI_USE_MSBUILD_SERVER=0
 
 # Refuse manifest drift before restore, packing or any downstream consumer workload.
 if [ "$mode" != archive ]; then
@@ -44,7 +45,7 @@ fi
 version="$(dotnet msbuild src/FS.GG.Algorithms.Skills/FS.GG.Algorithms.Skills.csproj -getProperty:Version)"
 if [ "$mode" = pack ]; then
   mkdir -p "$output"
-  dotnet pack src/FS.GG.Algorithms.Skills/FS.GG.Algorithms.Skills.csproj --no-restore -c Release -o "$output"
+  dotnet pack src/FS.GG.Algorithms.Skills/FS.GG.Algorithms.Skills.csproj --no-restore -c Release -p:UseSharedCompilation=false -nodeReuse:false -o "$output"
   archive="$output/FS.GG.Algorithms.Skills.$version.nupkg"
 fi
 archive="$(realpath "$archive")"
