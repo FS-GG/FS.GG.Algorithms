@@ -18,6 +18,7 @@ spec.loader.exec_module(rc)
 INDEX = json.dumps({"resources": [{"@type": "PackageBaseAddress/3.0.0", "@id": "https://feed/flat/"}]}).encode()
 failures = []
 checks = 0
+requests = []
 
 
 def run(argv, responses=None, env=None):
@@ -25,6 +26,7 @@ def run(argv, responses=None, env=None):
     responses = responses or {}
 
     def fake(url, auth=None):
+        requests.append(url)
         if url.endswith("index.json"):
             return responses.get("index", 200), INDEX
         status = responses.get(url.rsplit("/", 1)[-1], 404)
@@ -116,6 +118,38 @@ with tempfile.TemporaryDirectory() as d:
         expect(f"fetch-github fails on {status}", run(["fetch-github", "0.1.0", "u", str(out_file)], {nupkg: status})[0] == 1)
 
 expect("usage errors exit 2", run(["nonsense"])[0] == 2)
+
+# The new explicit Skills route is not an ambient/global identity switch. The old caller
+# keeps exactly its prior URLs and state contract, including after a Skills invocation.
+skills = ["--package", "FS.GG.Algorithms.Skills"]
+skills_nupkg = "fs.gg.algorithms.skills.0.1.0.nupkg"
+for status, code_expected in ((200, 0), (404, 0), (401, 1), (500, 1), (0, 1)):
+    requests.clear()
+    code, out = run([*skills, "feed-state", "0.1.0", "u"], {skills_nupkg: status})
+    expect(f"Skills feed status {status} uses the explicit identity and fails closed", code == code_expected and any(skills_nupkg in url for url in requests))
+requests.clear()
+run(["feed-state", "0.1.0", "u"], {nupkg: 200})
+expect("default library caller cannot inherit the prior Skills identity", any(nupkg in url for url in requests) and not any(skills_nupkg in url for url in requests))
+requests.clear()
+expect("another package identity refuses before any HTTP", run(["--package", "FS.GG.Other", "feed-state", "0.1.0", "u"])[0] == 1 and requests == [])
+expect("missing explicit package arguments are usage errors", run(["--package"])[0] == 2)
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d)
+    digest = "a" * 64
+    (d / "sha").write_text(digest + "  FS.GG.Algorithms.Skills.0.1.0.nupkg\n")
+    state = {"package": "FS.GG.Algorithms.Skills", "mode": "publish", "run": "77", "archiveRun": "77", "version": "0.1.0", "commit": "c0ffee", "archiveSha256": digest, "githubPackagesPush": "success"}
+    def skills_source(value):
+        (d / "state").write_text(json.dumps(value))
+        return run([*skills, "validate-source", str(d / "state"), str(d / "sha"), "77", "0.1.0", "c0ffee"])[0]
+    expect("Skills original archive state is accepted", skills_source(state) == 0)
+    expect("library state cannot authorize a Skills resume", skills_source({**state, "package": "FS.GG.Algorithms"}) == 1)
+    expect("missing Skills package identity cannot authorize resume", skills_source({k: v for k, v in state.items() if k != "package"}) == 1)
+    expect("Skills preview cannot authorize resume", skills_source({**state, "mode": "dry-run"}) == 1)
+    expect("Skills archive mismatch refuses", skills_source({**state, "archiveSha256": "b" * 64}) == 1)
+    out_file = d / "held.nupkg"
+    requests.clear()
+    code, _ = run([*skills, "fetch-github", "0.1.0", "u", str(out_file)], {skills_nupkg: 200})
+    expect("Skills held archive fetch uses the Skills URL", code == 0 and out_file.read_bytes() == b"held bytes" and any(skills_nupkg in url for url in requests))
 print(f"release-checks tests: {checks} checks, {len(failures)} failed")
 for f in failures:
     print(f"  FAILED: {f}")

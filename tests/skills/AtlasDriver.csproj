@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Test/build tool only: resolve the existing published Atlas driver, never ship a copy. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Remove="FSharp.Core" />
+    <PackageReference Include="FS.GG.Drivers" Version="0.120.0" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

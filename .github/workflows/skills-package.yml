@@ -1,0 +1,90 @@
+name: skills-package
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # These projects are outside the library solution: shared and added parent build inputs
+    # must still trigger their closed-payload/real-consumer gate.
+    paths:
+      - 'global.json'
+      - 'Directory.Build.*'
+      - 'Directory.Packages.*'
+      - 'NuGet.Config'
+      - 'NuGet.config'
+      - 'nuget.config'
+      - 'src/global.json'
+      - 'src/Directory.Build.*'
+      - 'src/Directory.Packages.*'
+      - 'tests/global.json'
+      - 'tests/Directory.Build.*'
+      - 'tests/Directory.Packages.*'
+      - 'template/product-skills/fs-gg-algorithms/**'
+      - 'template/skill-manifest/**'
+      - 'scripts/*algorithms-pack*'
+      - 'scripts/generate-skill-manifest.fsx'
+      - 'src/FS.GG.Algorithms.Skills/**'
+      - 'tests/skills/**'
+      - 'eng/release-checks*'
+      - '.github/workflows/skills-package.yml'
+      - '.github/workflows/release-skills.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'global.json'
+      - 'Directory.Build.*'
+      - 'Directory.Packages.*'
+      - 'NuGet.Config'
+      - 'NuGet.config'
+      - 'nuget.config'
+      - 'src/global.json'
+      - 'src/Directory.Build.*'
+      - 'src/Directory.Packages.*'
+      - 'tests/global.json'
+      - 'tests/Directory.Build.*'
+      - 'tests/Directory.Packages.*'
+      - 'template/product-skills/fs-gg-algorithms/**'
+      - 'template/skill-manifest/**'
+      - 'scripts/*algorithms-pack*'
+      - 'scripts/generate-skill-manifest.fsx'
+      - 'src/FS.GG.Algorithms.Skills/**'
+      - 'tests/skills/**'
+      - 'eng/release-checks*'
+      - '.github/workflows/skills-package.yml'
+      - '.github/workflows/release-skills.yml'
+permissions:
+  contents: read
+concurrency:
+  group: algorithms-skills-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    name: Verify Algorithms skill producer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout the actual candidate and its citation history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up the pinned SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - name: Manifest, actual packaged Atlas, integrity controls, pack and real consumer
+        # runner context is available at STEP env, not jobs.<job_id>.env.
+        # Keep the real package/consumer caches private under the allocated runner temporary root.
+        env:
+          NUGET_PACKAGES: ${{ runner.temp }}/algorithms-skills-packages
+          DOTNET_CLI_HOME: ${{ runner.temp }}/algorithms-skills-dotnet
+          DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+        shell: bash
+        run: bash src/FS.GG.Algorithms.Skills/verify-package.sh
+      - name: Retain the actual qualified package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: algorithms-skills-candidate-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/skills/*.nupkg
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "FS.GG.Drivers": {
+        "type": "Direct",
+        "requested": "[0.120.0, )",
+        "resolved": "0.120.0",
+        "contentHash": "1FKNalutjMoFiXKBndZqn2sixgXohKzFQB7OhDuDROtVe8cBZBoG4p8wa4SKRQaHBOhKVZw8n5e4HCbc7T7pQg=="
+      }
+    }
+  }
+}
