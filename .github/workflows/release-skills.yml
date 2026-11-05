@@ -32,7 +32,7 @@ name: release-skills
 #                                           Nothing is re-packed.
 #   dispatch readback         (tag ref)     readback only, after a readback timeout; nothing is pushed
 #
-# The nuget.org Trusted Publishing policy is bound to: owner FS-GG, repository FS.GG.Algorithms.Skills, workflow
+# The nuget.org Trusted Publishing policy is bound to: owner FS-GG, repository FS.GG.Algorithms, workflow
 # file release-skills.yml. Without it, NuGet/login fails closed with a 401 (login-preflight finds that first).
 
 on:

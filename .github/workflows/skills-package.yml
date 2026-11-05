@@ -3,7 +3,21 @@ name: skills-package
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    # These projects are outside the library solution: shared and added parent build inputs
+    # must still trigger their closed-payload/real-consumer gate.
     paths:
+      - 'global.json'
+      - 'Directory.Build.*'
+      - 'Directory.Packages.*'
+      - 'NuGet.Config'
+      - 'NuGet.config'
+      - 'nuget.config'
+      - 'src/global.json'
+      - 'src/Directory.Build.*'
+      - 'src/Directory.Packages.*'
+      - 'tests/global.json'
+      - 'tests/Directory.Build.*'
+      - 'tests/Directory.Packages.*'
       - 'template/product-skills/fs-gg-algorithms/**'
       - 'template/skill-manifest/**'
       - 'scripts/*algorithms-pack*'
@@ -16,6 +30,18 @@ on:
   push:
     branches: [main]
     paths:
+      - 'global.json'
+      - 'Directory.Build.*'
+      - 'Directory.Packages.*'
+      - 'NuGet.Config'
+      - 'NuGet.config'
+      - 'nuget.config'
+      - 'src/global.json'
+      - 'src/Directory.Build.*'
+      - 'src/Directory.Packages.*'
+      - 'tests/global.json'
+      - 'tests/Directory.Build.*'
+      - 'tests/Directory.Packages.*'
       - 'template/product-skills/fs-gg-algorithms/**'
       - 'template/skill-manifest/**'
       - 'scripts/*algorithms-pack*'
