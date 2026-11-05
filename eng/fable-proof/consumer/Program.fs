@@ -26,5 +26,12 @@ let main _ =
         BehaviourTree.tickTracedWithHalts tree (fun l () -> (if l = 0 then BtStatus.Running else BtStatus.Success), ()) (BehaviourTree.initial tree) ()
     if result <> BtStatus.Success || visited <> [ 1; 2 ] || halted <> [ 1 ] then
         failwith "packed halted-leaf API returned the wrong result"
+    let utility = UtilityAi.evaluate UtilityCurve.Quadratic Fixed.half
+    let inverted = UtilityAi.invert utility
+    let aggregate = UtilityAi.product [ utility; inverted ]
+    if (UtilityAi.value aggregate).Raw <> 12288
+       || UtilityAi.choose [ "first", aggregate; "second", aggregate ] <> Some("first", aggregate)
+       || (UtilityAi.value (UtilityAi.score Fixed.minValue)).Raw <> 0 then
+        failwith "packed utility API returned the wrong score or tie order"
     printfn "heap=%s mul=%d div=%d sqrt=%d xo=%d seed=%d path=%s" order product quotient root r0 s0 path
     0

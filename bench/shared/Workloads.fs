@@ -223,9 +223,19 @@ let prepareDoorGrid (side: int) : unit -> int =
 /// own percentile, exact integer rank).
 let nearestRank (percent: int) (sortedSamples: float[]) = Percentile.ofSorted percent 100 sortedSamples
 
+/// decision/utility-ai: n quadratic responses followed by first-maximum selection. Work: 2n.
+/// Inputs allocated once; outputs feed the sink. Raw inputs stay in 0..65536; F2 owns multiplication.
+let prepareUtilityAi (n: int) : unit -> int =
+    let inputs = ints n 65537
+    fun () ->
+        let actions = inputs |> Array.mapi (fun i x -> i, UtilityAi.evaluate UtilityCurve.Quadratic (Fixed.ofRaw x)) |> Array.toList
+        sink <- UtilityAi.choose actions |> Option.map fst |> Option.defaultValue -1
+        2 * n
+
 /// The declared kernels: id, sizes (three each, ADR-0098 §4.3), and the preparation.
 let kernels: (string * int list * (int -> unit -> int)) list =
-    [ "collections/binary-heap/push-pop", [ 1000; 10000; 100000 ], prepareHeap
+    [ "decision/utility-ai/score-select", [ 1000; 10000; 100000 ], prepareUtilityAi
+      "collections/binary-heap/push-pop", [ 1000; 10000; 100000 ], prepareHeap
       "numerics/fixed-q16-16/mul-div-sqrt", [ 1000; 10000; 100000 ], prepareFixed
       "random/xoshiro128/next", [ 1000; 10000; 100000 ], prepareXoshiro
       "graph/best-first-search/astar-grid", [ 32; 128; 512 ], prepareAstar

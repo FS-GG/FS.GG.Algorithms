@@ -29,6 +29,25 @@ The grades are recorded in
 [`src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json`](src/FS.GG.Algorithms/Fable/compatibility-profile.v1.json).
 The public surface is declared in the `.fsi` signature files.
 
+### Utility AI (current source; not yet released)
+
+`Decision.UtilityAi` uses F2 Q16.16 throughout. `score` clamps every raw Fixed value to 0..1;
+`evaluate` applies `UtilityCurve.Linear`, `Quadratic` or `SquareRoot` after clamping. The responses
+are monotone increasing with exact endpoints. `invert` complements a score for decreasing responses.
+Quadratic rounds by F2 nearest/ties-up multiplication; square root rounds down.
+
+`product` multiplies considerations in list order, rounding after each multiplication. Empty means 1,
+and zero vetoes. It applies no compensation or weights; order can affect the last bit through rounding.
+`choose` returns the first highest-scoring action, including the first when all scores are zero, or
+`None` for an empty list. Both traversals are iterative. Callers supply normalized inputs and stable
+action ordering; no floating-point transcendental participates in action selection.
+
+The admission evidence is the independent integer FsCheck oracles, exhaustive 65,537-point response
+checks, operation 16 in the append-only lockstep corpus, and the maintained packed .NET/Fable consumer.
+The new `decision/utility-ai/score-select` benchmark covers 1,000, 10,000 and 100,000 actions on each runtime;
+its baseline is separate from the historical 0.2.0 baseline below. Product-pack distribution remains under
+[ALGO-01.3](https://github.com/FS-GG/.github/issues/5225), which has not landed.
+
 ### 0.2.0 API additions
 
 `BehaviourTree.tickTracedWithHalts` adds a fifth return value to the traced result: the preorder indices of

@@ -2,6 +2,7 @@
 /// Node's default stack in the Fable build. Each check prints one line; any failure exits non-zero.
 module FS.GG.Algorithms.Lockstep.StackSafety
 
+open FS.GG.Algorithms.Numerics
 open FS.GG.Algorithms.Collections
 open FS.GG.Algorithms.Graph
 open FS.GG.Algorithms.Decision
@@ -150,6 +151,20 @@ let canary () =
         "stack-safety: canary: a naive 10^5 recursion overflows Node's default stack, as expected", true
 #endif
 
+let private utilityAi () =
+    let ones = List.replicate size (UtilityAi.score Fixed.one)
+    let actions = List.init size (fun i -> i, UtilityAi.score Fixed.one)
+    let mutable monotone = true
+    for curve in [ UtilityCurve.Linear; UtilityCurve.Quadratic; UtilityCurve.SquareRoot ] do
+        let mutable previous = -1
+        for x in 0..65536 do
+            let v = UtilityAi.value (UtilityAi.evaluate curve (Fixed.ofRaw x))
+            monotone <- monotone && v.Raw >= previous && v.Raw <= 65536
+            previous <- v.Raw
+        monotone <- monotone && previous = 65536
+    monotone && UtilityAi.value (UtilityAi.product ones) = Fixed.one
+    && UtilityAi.choose actions = Some(0, UtilityAi.score Fixed.one)
+
 /// Runs every check; returns the printed lines and whether all passed.
 let run () =
     let checks =
@@ -165,7 +180,8 @@ let run () =
           "BehaviourTree 10^5 levels deep and 10^5 wide", behaviourTreeDeep
           "BehaviourTree reactive 10^5 deep and wide, halting the running branch", behaviourTreeReactive
           "DoorGrid 10^5-tile corridor", doorCorridor
-          "KdTree 10^5 collinear and duplicate points", kdDegenerate ]
+          "KdTree 10^5 collinear and duplicate points", kdDegenerate
+          "UtilityAi 10^5 considerations/actions and exhaustive curve monotonicity", utilityAi ]
     let results = checks |> List.map (fun (name, f) -> name, f ())
     let lines =
         results |> List.map (fun (name, ok) -> "stack-safety: " + name + ": " + (if ok then "ok" else "FAILED"))
