@@ -19,6 +19,11 @@ stage = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stage)
 
 
+# Exact job prefix from the original zero-job failed workflow e36318b:63–68 env mapping.
+# Retained inline so a protected squash/default/release checkout needs no unmerged Git object.
+ORIGINAL_FAILED_JOB = "jobs:\n  verify:\n    name: Verify Algorithms skill producer\n    runs-on: ubuntu-24.04\n    timeout-minutes: 15\n    env:\n      NUGET_PACKAGES: ${{ runner.temp }}/algorithms-skills-packages\n      DOTNET_CLI_HOME: ${{ runner.temp }}/algorithms-skills-dotnet\n      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'\n"
+ORIGINAL_FAILED_JOB_SHA256 = '21b8e26c597f228d8064cf40d2d8d1e0f13ba411e2a31bc82b78665ca0c5af05'
+
 def refuse_job_runner_context(workflow):
     """Focused check for the two maintained workflows' block-style job env mappings.
 
@@ -47,11 +52,10 @@ class DeliveryTests(unittest.TestCase):
         workflow_path = '.github/workflows/skills-package.yml'
         current = (ROOT / workflow_path).read_text()
         release = (ROOT / '.github/workflows/release-skills.yml').read_text()
-        # Immutable actual first failing producer, not a fabricated lookalike or a self-comparison.
-        original = subprocess.run(
-            ['git', '-C', str(ROOT), 'show',
-             'e36318b4687e25a6531bbd98581eb722bdb51b85:' + workflow_path],
-            capture_output=True, text=True, check=True).stdout
+        # Immutable exact first failing job prefix; no historical feature-ref dependency after squash.
+        self.assertEqual(hashlib.sha256(ORIGINAL_FAILED_JOB.encode()).hexdigest(),
+                         ORIGINAL_FAILED_JOB_SHA256)
+        original = ORIGINAL_FAILED_JOB
         with self.assertRaisesRegex(ValueError, 'runner context is unavailable in job env'):
             refuse_job_runner_context(original)
         refuse_job_runner_context(current)
